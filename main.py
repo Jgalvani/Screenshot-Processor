@@ -1,0 +1,194 @@
+"""Main orchestrator for the screenshot saver automation workflow."""
+
+import sys
+import json
+from pathlib import Path
+from datetime import datetime
+from playwright.sync_api import sync_playwright
+
+from config import Settings
+from utils import WordReader, OpenAIExtractor
+from pages import GenericPage
+
+
+def process_url(page, extractor: OpenAIExtractor, url: str, index: int) -> dict:
+    """
+    Process a single URL: navigate, screenshot, and extract data.
+
+    Args:
+        page: Playwright Page object
+        extractor: OpenAI extractor instance
+        url: URL to process
+        index: URL index for naming
+
+    Returns:
+        Dictionary with processing results
+    """
+    print(f"\n[{index}] Processing: {url}")
+
+    generic_page = GenericPage(page, openai_extractor=extractor)
+
+    try:
+        # Navigate to URL
+        generic_page.navigate(url)
+        print(f"    Page loaded: {generic_page.get_title()}")
+
+        # Simulate human-like browsing
+        generic_page.simulate_browsing(scroll_times=2)
+
+        # Capture and extract
+        result = generic_page.capture_and_extract(
+            screenshot_name=f"url_{index}"
+        )
+
+        print(f"    Screenshot saved: {result['screenshot_path']}")
+
+        if result.get("product_info"):
+            print(f"    Product: {result['product_info'].get('product_name', 'N/A')}")
+            print(f"    Final price: {result.get('final_price', 'N/A')}")
+
+        return {
+            "success": True,
+            "url": url,
+            "index": index,
+            **result
+        }
+
+    except Exception as e:
+        print(f"    Error: {str(e)}")
+        return {
+            "success": False,
+            "url": url,
+            "index": index,
+            "error": str(e)
+        }
+
+
+def save_results(results: list[dict], output_dir: Path) -> Path:
+    """
+    Save processing results to a JSON file.
+
+    Args:
+        results: List of processing results
+        output_dir: Output directory
+
+    Returns:
+        Path to the results file
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_file = output_dir / f"results_{timestamp}.json"
+
+    # Convert Path objects to strings for JSON serialization
+    serializable_results = []
+    for result in results:
+        r = result.copy()
+        if "screenshot_path" in r and r["screenshot_path"]:
+            r["screenshot_path"] = str(r["screenshot_path"])
+        serializable_results.append(r)
+
+    with open(results_file, "w") as f:
+        json.dump(serializable_results, f, indent=2)
+
+    return results_file
+
+
+def main(word_file_path: str | None = None) -> None:
+    """
+    Main entry point for the automation workflow.
+
+    Args:
+        word_file_path: Path to Word document containing URLs
+    """
+    print("=" * 60)
+    print("Screenshot Saver - Browser Automation Workflow")
+    print("=" * 60)
+
+    # Validate settings
+    Settings.ensure_directories()
+    errors = Settings.validate()
+    if errors:
+        print("\nConfiguration errors:")
+        for error in errors:
+            print(f"  - {error}")
+        print("\nPlease check your .env file and try again.")
+        sys.exit(1)
+
+    # Get Word file path
+    if word_file_path:
+        word_path = Path(word_file_path)
+    else:
+        # Look for .docx files in data directory
+        docx_files = list(Settings.DATA_DIR.glob("*.docx"))
+        if not docx_files:
+            print(f"\nNo .docx files found in {Settings.DATA_DIR}")
+            print("Please add a Word document with URLs to process.")
+            sys.exit(1)
+        word_path = docx_files[0]
+        print(f"\nUsing Word file: {word_path}")
+
+    # Read URLs from Word document
+    try:
+        reader = WordReader(word_path)
+        urls = reader.extract_urls()
+    except Exception as e:
+        print(f"\nError reading Word document: {e}")
+        sys.exit(1)
+
+    if not urls:
+        print("\nNo URLs found in the Word document.")
+        sys.exit(1)
+
+    print(f"\nFound {len(urls)} URL(s) to process:")
+    for i, url in enumerate(urls, 1):
+        print(f"  {i}. {url}")
+
+    # Initialize OpenAI extractor
+    try:
+        extractor = OpenAIExtractor()
+    except ValueError as e:
+        print(f"\nOpenAI setup error: {e}")
+        sys.exit(1)
+
+    # Process URLs sequentially
+    results = []
+    with sync_playwright() as playwright:
+        browser, page = GenericPage.create_browser_context(playwright)
+
+        try:
+            for index, url in enumerate(urls, 1):
+                result = process_url(page, extractor, url, index)
+                results.append(result)
+
+        finally:
+            browser.close()
+
+    # Save results
+    results_file = save_results(results, Settings.OUTPUT_DIR)
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("Processing Complete")
+    print("=" * 60)
+
+    successful = sum(1 for r in results if r.get("success"))
+    print(f"\nProcessed: {len(results)} URLs")
+    print(f"Successful: {successful}")
+    print(f"Failed: {len(results) - successful}")
+    print(f"\nResults saved to: {results_file}")
+
+    # Print final prices if available
+    prices = [
+        (r.get("product_info", {}).get("product_name"), r.get("final_price"))
+        for r in results
+        if r.get("success") and r.get("final_price")
+    ]
+    if prices:
+        print("\nExtracted Prices:")
+        for name, price in prices:
+            print(f"  - {name or 'Unknown'}: {price}")
+
+
+if __name__ == "__main__":
+    # Accept optional Word file path as command line argument
+    file_path = sys.argv[1] if len(sys.argv) > 1 else None
+    main(file_path)

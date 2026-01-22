@@ -1,0 +1,13 @@
+Summary
+Seeking a Python Playwright developer to create a browser automation workflow. 
+The system will read URLs from a Word file, open them in a real browser, take screenshots, crop images, and extract data using OpenAI API. 
+The solution must mimic human-like browser behavior and maintain clean, modular code. 
+No HTML scraping is required.
+
+Deliverables
+Read URLs from Word file
+Open URLs in real browser
+Take and crop screenshots
+Extract data via OpenAI API
+Calculate final sale price
+Process items sequentially (one-by-one)
