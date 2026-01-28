@@ -83,12 +83,12 @@ pipenv shell
 
 3. Run the automation:
 ```bash
-python main.py
+pipenv run python main.py
 ```
 
 4. Or specify a Word file directly:
 ```bash
-python main.py /path/to/your/document.docx
+pipenv run python main.py /path/to/your/document.docx
 ```
 
 ### Output

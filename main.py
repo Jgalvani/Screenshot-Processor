@@ -2,6 +2,7 @@
 
 import sys
 import json
+import atexit
 from pathlib import Path
 from datetime import datetime
 from playwright.sync_api import sync_playwright
@@ -33,8 +34,29 @@ def process_url(page, extractor: OpenAIExtractor, url: str, index: int) -> dict:
         generic_page.navigate(url)
         print(f"    Page loaded: {generic_page.get_title()}")
 
-        # Simulate human-like browsing
-        generic_page.simulate_browsing(scroll_times=2)
+        # Check if we're still on a Cloudflare challenge page after navigation
+        # (navigation handler might have already tried to solve it)
+        if generic_page.antibot.is_cloudflare_challenge_page():
+            print("    Still on Cloudflare challenge page, retrying...")
+            if generic_page.antibot.solve_cloudflare_challenge(max_attempts=3):
+                print("    Cloudflare challenge solved!")
+                generic_page.human.wait_for_page_ready()
+            else:
+                print("    Warning: Could not solve Cloudflare challenge")
+
+        # Only handle antibot challenges on actual challenge pages
+        # Check if this is a challenge/verification page (not a normal product page)
+        page_title = generic_page.get_title().lower()
+        is_challenge_page = any(term in page_title for term in [
+            "just a moment", "verify", "access denied", "blocked",
+            "security check", "challenge", "captcha"
+        ])
+
+        if is_challenge_page:
+            print("    Antibot challenge detected, attempting to solve...")
+            if generic_page.antibot.auto_solve():
+                print("    Challenge handled, waiting for page...")
+                generic_page.human.wait_for_page_ready()
 
         # Capture and extract
         result = generic_page.capture_and_extract(
@@ -151,16 +173,42 @@ def main(word_file_path: str | None = None) -> None:
 
     # Process URLs sequentially
     results = []
-    with sync_playwright() as playwright:
-        browser, page = GenericPage.create_browser_context(playwright)
 
+    # Import cleanup function
+    from pages.base_page import cleanup_chrome
+
+    # Register cleanup for unexpected exits
+    atexit.register(cleanup_chrome)
+
+    browser = None
+    try:
+        with sync_playwright() as playwright:
+            browser, page = GenericPage.create_browser_context(playwright)
+
+            try:
+                for index, url in enumerate(urls, 1):
+                    result = process_url(page, extractor, url, index)
+                    results.append(result)
+
+            finally:
+                # Close browser connection
+                if browser:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
+
+    except KeyboardInterrupt:
+        print("\n\nInterrupted by user. Cleaning up...")
+
+    finally:
+        # Always cleanup Chrome process
+        cleanup_chrome()
+        # Unregister atexit since we've already cleaned up
         try:
-            for index, url in enumerate(urls, 1):
-                result = process_url(page, extractor, url, index)
-                results.append(result)
-
-        finally:
-            browser.close()
+            atexit.unregister(cleanup_chrome)
+        except Exception:
+            pass
 
     # Save results
     results_file = save_results(results, Settings.OUTPUT_DIR)

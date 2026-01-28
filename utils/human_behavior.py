@@ -131,9 +131,16 @@ class HumanBehavior:
         for char in text:
             element.press_sequentially(char, delay=random.randint(50, 150))
 
-    def wait_for_page_ready(self) -> None:
+    def wait_for_page_ready(self, timeout: int = 10000) -> None:
         """Wait for page to be fully loaded and ready."""
-        self.page.wait_for_load_state("networkidle")
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=timeout)
+        except Exception:
+            # If networkidle times out, just wait for domcontentloaded
+            try:
+                self.page.wait_for_load_state("domcontentloaded", timeout=5000)
+            except Exception:
+                pass
         self.random_delay(500, 1000)
 
     def simulate_reading(self, duration_seconds: float | None = None) -> None:
