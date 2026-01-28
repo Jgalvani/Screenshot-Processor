@@ -144,18 +144,17 @@ class OpenAIExtractor:
         return result
 
     def _parse_price(self, value: str | None) -> float | None:
-        """Parse a price string to float."""
+        """Parse a price string to float, handling various currency formats."""
+        import re
         if not value:
             return None
         try:
-            # Remove common currency symbols and separators
-            cleaned = value\
-                .replace("$", "")\
-                .replace("€", "")\
-                .replace("£", "")\
-                .replace(",", "")\
-                .strip()
-            return float(cleaned)
+            # Extract the numeric part (handles formats like "27.77", "1,234.56", "EUR 19.43")
+            match = re.search(r'[\d,]+\.?\d*', value)
+            if match:
+                number_str = match.group().replace(",", ".")
+                return float(number_str)
+            return None
         except (ValueError, AttributeError):
             return None
 

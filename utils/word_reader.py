@@ -44,12 +44,6 @@ class WordReader:
         for paragraph in document.paragraphs:
             found_urls = self.URL_PATTERN.findall(paragraph.text)
             urls.update(found_urls)
-            
-            # Extract from hyperlinks
-            for run in paragraph.runs:
-                if run._element.xml:
-                    hyperlinks = self._extract_hyperlinks_from_xml(run._element.xml)
-                    urls.update(hyperlinks)
 
         # Extract from tables
         for table in document.tables:
