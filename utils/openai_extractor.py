@@ -53,9 +53,14 @@ class OpenAIExtractor:
             {
                 "role": "system",
                 "content": (
-                    "You are a data extraction assistant. Extract the requested "
-                    "information from the provided image accurately and concisely. "
-                    "If you cannot find the requested information, say so clearly."
+                    "You are an e-commerce product data extraction specialist. "
+                    "Your task is to identify and extract information about the MAIN product "
+                    "on product detail pages. Focus on the product with the largest image "
+                    "and whose name appears in the page heading. Ignore small thumbnails in "
+                    "'shop similar' or 'recommended' carousels. "
+                    "You MUST always provide extracted data - use your best judgment for "
+                    "unusual layouts like resale marketplaces (GOAT, StockX) where prices "
+                    "may be shown per size or as 'Lowest Ask'."
                 )
             },
             {
@@ -95,12 +100,33 @@ class OpenAIExtractor:
             Dictionary with product information
         """
         prompt = dedent("""
-            Extract the following product information from this screenshot:
-            1. Product name/title
-            2. Original price (if shown)
-            3. Sale/discounted price (if shown)
-            4. Currency
-            5. Any discount percentage shown
+            Extract product information from the MAIN PRODUCT on this e-commerce page.
+
+            IDENTIFYING THE MAIN PRODUCT:
+            The main product is the one being sold on this page. Look for:
+            - The product name in the page title or largest heading
+            - The largest product image (usually left or center of the page)
+            - The product with detailed description, size selector, or "Add to Cart" button
+
+            DO NOT extract from these secondary sections:
+            - "Shop similar" / "Similar products" horizontal carousels
+            - "You may also like" / "Recommended" sections
+            - Small product thumbnails in rows at the top of the page
+
+            HANDLING DIFFERENT PRICE FORMATS:
+            - Standard: Look for a single price near the product name
+            - Resale sites (StockX, GOAT): Look for "Lowest Ask", "Buy Now" price, or the starting price shown. If prices vary by size, use the lowest visible price or the one currently selected
+            - Auction/bid sites: Use the "Buy Now" or "Lowest Ask" price, not bids
+            - Pre-owned/Refurbished (Walmart, Amazon): The main product may show "Pre-Owned" or "Refurbished" - this is still the main product if it has the largest image
+
+            ALWAYS EXTRACT DATA - even if the layout is unusual, identify the main product and extract what you can find.
+
+            Extract these details:
+            1. Product name/title (the full name from the heading, not abbreviated)
+            2. Original price (if shown crossed out, otherwise N/A)
+            3. Sale/current price (the price to pay now - use lowest available if multiple sizes shown)
+            4. Currency (USD, EUR, GBP, etc.)
+            5. Discount percentage (if shown, otherwise N/A)
 
             Return the data in this exact format:
             PRODUCT_NAME: <value>

@@ -10,7 +10,7 @@ from playwright.sync_api import Page, Browser, Playwright
 from config import Settings
 from utils.human_behavior import HumanBehavior
 from utils.screenshot_handler import ScreenshotHandler
-from utils.antibot import AntibotHandler, CookieHandler
+from utils.antibot import AntibotHandler, CookieHandler, ModalHandler
 
 
 # Global reference to Chrome process for cleanup
@@ -20,6 +20,7 @@ _chrome_process = None
 def _launch_chrome_with_debugging(port: int = 9222) -> subprocess.Popen:
     """Launch Chrome with remote debugging enabled."""
     global _chrome_process
+    import urllib.request
 
     # Kill any existing Chrome debug instances
     subprocess.run(['pkill', '-f', 'Chrome.*remote-debugging'], capture_output=True)
@@ -55,8 +56,16 @@ def _launch_chrome_with_debugging(port: int = 9222) -> subprocess.Popen:
         preexec_fn=os.setpgrp
     )
 
-    # Wait for Chrome to start
-    time.sleep(3)
+    # Wait for Chrome to be ready (check if debugging port is open)
+    for i in range(10):
+        time.sleep(1)
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1)
+            print(f"    Chrome started on port {port}")
+            break
+        except Exception:
+            if i == 9:
+                print(f"    Warning: Chrome may not have started properly")
 
     return _chrome_process
 
@@ -111,6 +120,7 @@ class BasePage:
         self.screenshot = ScreenshotHandler()
         self.antibot = AntibotHandler(page)
         self.cookie_handler = CookieHandler(page)
+        self.modal_handler = ModalHandler(page)
 
     @classmethod
     def create_browser_context(cls, playwright: Playwright) -> tuple[Browser, Page]:
@@ -154,12 +164,12 @@ class BasePage:
 
         # Wait for page to be fully loaded
         try:
-            self.page.wait_for_load_state("networkidle", timeout=10000)
+            self.page.wait_for_load_state("networkidle", timeout=5000)
         except Exception:
             pass
 
-        # Additional wait for JavaScript-heavy pages
-        time.sleep(2)
+        # Brief wait for JavaScript rendering
+        time.sleep(0.5)
 
         # Check for human verification during/after navigation
         self._handle_verification_popup()
@@ -168,14 +178,17 @@ class BasePage:
         # Handle cookie consent modals
         self._handle_cookie_consent()
 
+        # Handle other modals (sign-in, country selection, newsletters, etc.)
+        self._handle_modals()
+
     def _handle_verification_popup(self) -> None:
         """Handle any verification popups that appear during navigation."""
         import time
         import random
 
         try:
-            # Give page a moment to show verification
-            time.sleep(random.uniform(1.0, 2.0))
+            # Brief check for verification elements
+            time.sleep(0.3)
 
             # Check if this is a Cloudflare challenge page first (most common case)
             if self.antibot.is_cloudflare_challenge_page():
@@ -196,9 +209,16 @@ class BasePage:
                 "just a moment", "verify", "challenge", "security check", "access denied"
             ])
 
-            # Check for puzzle captcha (Shein uses this - requires manual solving)
+            # Check for puzzle captcha (Shein uses this)
             if self.page.locator("text='Slide to complete'").count() > 0:
-                print("    Puzzle captcha detected - cannot be auto-solved")
+                print("    Puzzle captcha detected - attempting to solve...")
+                if self.antibot.solve_puzzle_slider():
+                    # Wait for page to load after solving
+                    time.sleep(2)
+                    try:
+                        self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                    except Exception:
+                        pass
                 return
 
             # Also check if there's a visible Cloudflare turnstile
@@ -232,33 +252,30 @@ class BasePage:
     def _handle_cookie_consent(self) -> None:
         """Handle cookie consent modals that appear after page load."""
         import time
-        import random
 
         try:
-            # Give page a moment for cookie modal to appear
-            time.sleep(random.uniform(0.3, 0.5))
-
             # Check if cookie modal is present and accept it
             if self.cookie_handler.detect_cookie_modal():
                 self.cookie_handler.accept_cookies()
 
-                # Wait for page to stabilize after cookie acceptance
-                # Some sites reload the page after accepting cookies
-                time.sleep(1.5)
-
-                # Try to wait for page to be ready again
-                try:
-                    self.page.wait_for_load_state("domcontentloaded", timeout=5000)
-                except Exception:
-                    pass
+                # Brief wait for page to stabilize
+                time.sleep(0.5)
 
                 try:
-                    self.page.wait_for_load_state("networkidle", timeout=5000)
+                    self.page.wait_for_load_state("domcontentloaded", timeout=3000)
                 except Exception:
                     pass
 
         except Exception:
             # Context may have been destroyed due to navigation - that's OK
+            pass
+
+    def _handle_modals(self) -> None:
+        """Handle various modal popups (sign-in, country selection, newsletters, etc.)."""
+        try:
+            # Try to close any visible modals
+            self.modal_handler.close_all_modals(max_attempts=2)
+        except Exception:
             pass
 
     def get_title(self) -> str:

@@ -5,10 +5,10 @@ name = "pypi"
 
 [packages]
 playwright = "*"
-python-docx = "*"
 openai = "*"
 pillow = "*"
 python-dotenv = "*"
+python-docx = "*"
 
 [dev-packages]
 

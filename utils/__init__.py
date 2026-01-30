@@ -4,7 +4,7 @@ from .word_reader import WordReader
 from .screenshot_handler import ScreenshotHandler
 from .openai_extractor import OpenAIExtractor
 from .human_behavior import HumanBehavior, ScrollDirection
-from .antibot import AntibotHandler, CookieHandler, get_browser_context_options, get_random_user_agent
+from .antibot import AntibotHandler, CookieHandler, ModalHandler, get_browser_context_options, get_random_user_agent
 
 __all__ = [
     "WordReader",
@@ -14,6 +14,7 @@ __all__ = [
     "ScrollDirection",
     "AntibotHandler",
     "CookieHandler",
+    "ModalHandler",
     "get_browser_context_options",
     "get_random_user_agent",
 ]

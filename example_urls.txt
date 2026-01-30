@@ -12,8 +12,6 @@ https://www.amazon.com/Invisible-Coup-American-Foreign-Immigration/dp/0063422506
 
 https://www.abebooks.com/Harry-Potter-cr%C3%A9ations-stickers-Pr%C3%A9-au-lard-450/32206274463/bd
 
-https://www.rei.com/product/228417/rei-co-op-active-pursuits-tank-top-womens
-
 https://www.guitarcenter.com/Simmons/KP180-18in-Kick-Pad-1500000435608.gc
 
 https://www.newegg.com/logitech-910-001935-m705-usb-rf-wireless/p/N82E16826104390
@@ -21,6 +19,8 @@ https://www.newegg.com/logitech-910-001935-m705-usb-rf-wireless/p/N82E1682610439
 
 Javascript heavy websites and antibot detection :
 ---------------------------
+
+https://www.rei.com/product/228417/rei-co-op-active-pursuits-tank-top-womens
 
 https://www.bhphotovideo.com/c/product/1904850-REG/lenovo_82xq00ebus_15_6_ideapad_slim_3.html/fci/35801
 
@@ -59,9 +59,6 @@ https://www.zara.com/us/en/basic-cotton-t-shirt-p03253320.html?v1=506473360
 
 # H&M - Uses Cloudflare protection
 https://www2.hm.com/en_us/productpage.0970818001.html
-
-# Shein - Uses multiple antibot layers including DataDome
-https://us.shein.com/Elaquor-Plus-Size-Women-Boat-Neck-Long-Sleeve-Sweater-And-Knitted-Pants-Casual-Suit-In-Spring-p-131340667.html?src_module=OtherListEmptyRecommend&src_identifier=on=PRODUCT_RECOMMEND_COMPONENT`cn=PRODUCT_RECOMMEND_COMPONENT_1`hz=0`ps=1_0`jc=null_0&src_tab_page_id=page_other1769609023175&mallCode=1&imgRatio=3-4&detailBusinessFrom=0-2
 
 # Costco - Uses PerimeterX with verification challenges
 https://www.costco.com/p/-/slapp-organic-ginger-turmeric-daily-booster-shots-48-count/4000236836?langId=-1
