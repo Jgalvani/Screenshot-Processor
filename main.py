@@ -9,7 +9,7 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright
 
 from config import Settings
-from utils import WordReader, OpenAIExtractor, ChromeManager
+from utils import WordReader, TextReader, OpenAIExtractor, ChromeManager
 from pages import GenericPage
 
 
@@ -127,12 +127,49 @@ def save_results(results: list[dict], output_dir: Path) -> Path:
     return results_file
 
 
-def main(word_file_path: str | None = None) -> None:
+def get_reader(file_path: Path):
+    """Get the appropriate reader based on file extension."""
+    ext = file_path.suffix.lower()
+    if ext == ".docx":
+        return WordReader(file_path)
+    elif ext == ".txt":
+        return TextReader(file_path)
+    else:
+        raise ValueError(f"Unsupported file format: {ext}")
+
+
+def select_files(files: list[Path]) -> list[Path]:
+    """Prompt user to select which files to process."""
+    print("\nAvailable files:")
+    for i, f in enumerate(files, 1):
+        print(f"  {i}. {f.name}")
+    print(f"  {len(files) + 1}. Process ALL files")
+
+    while True:
+        try:
+            choice = input("\nSelect file(s) to process (number or 'all'): ").strip().lower()
+
+            if choice == 'all' or choice == str(len(files) + 1):
+                return files
+
+            idx = int(choice) - 1
+            if 0 <= idx < len(files):
+                return [files[idx]]
+            else:
+                print("Invalid selection. Please try again.")
+        except ValueError:
+            print("Invalid input. Please enter a number or 'all'.")
+        except KeyboardInterrupt:
+            print("\n\nCancelled by user.")
+            sys.exit(0)
+
+
+def main(file_path: str | None = None) -> None:
     """
     Main entry point for the automation workflow.
 
     Args:
-        word_file_path: Path to Word document containing URLs
+        file_path: Path to file containing URLs (.docx or .txt)
     """
     print("=" * 60)
     print("Screenshot Saver - Browser Automation Workflow")
@@ -148,29 +185,41 @@ def main(word_file_path: str | None = None) -> None:
         print("\nPlease check your .env file and try again.")
         sys.exit(1)
 
-    # Get Word file path
-    if word_file_path:
-        word_path = Path(word_file_path)
+    # Get URL file(s)
+    if file_path:
+        selected_files = [Path(file_path)]
+        print(f"\nUsing file: {file_path}")
     else:
-        # Look for .docx files in data directory
+        # Look for .docx and .txt files in data directory
         docx_files = list(Settings.DATA_DIR.glob("*.docx"))
-        if not docx_files:
-            print(f"\nNo .docx files found in {Settings.DATA_DIR}")
-            print("Please add a Word document with URLs to process.")
-            sys.exit(1)
-        word_path = docx_files[0]
-        print(f"\nUsing Word file: {word_path}")
+        txt_files = list(Settings.DATA_DIR.glob("*.txt"))
+        all_files = sorted(docx_files + txt_files, key=lambda f: f.name)
 
-    # Read URLs from Word document
-    try:
-        reader = WordReader(word_path)
-        urls = reader.extract_urls()
-    except Exception as e:
-        print(f"\nError reading Word document: {e}")
-        sys.exit(1)
+        if not all_files:
+            print(f"\nNo .docx or .txt files found in {Settings.DATA_DIR}")
+            print("Please add a file with URLs to process.")
+            sys.exit(1)
+
+        if len(all_files) == 1:
+            selected_files = all_files
+            print(f"\nUsing file: {all_files[0].name}")
+        else:
+            selected_files = select_files(all_files)
+
+    # Read URLs from selected file(s)
+    urls = []
+    for f in selected_files:
+        try:
+            reader = get_reader(f)
+            file_urls = reader.extract_urls()
+            print(f"\n{f.name}: {len(file_urls)} URL(s) found")
+            urls.extend(file_urls)
+        except Exception as e:
+            print(f"\nError reading {f.name}: {e}")
+            continue
 
     if not urls:
-        print("\nNo URLs found in the Word document.")
+        print("\nNo URLs found in the selected file(s).")
         sys.exit(1)
 
     print(f"\nFound {len(urls)} URL(s) to process:")
@@ -257,6 +306,6 @@ def main(word_file_path: str | None = None) -> None:
 
 
 if __name__ == "__main__":
-    # Accept optional Word file path as command line argument
+    # Accept optional file path as command line argument (.docx or .txt)
     file_path = sys.argv[1] if len(sys.argv) > 1 else None
     main(file_path)
