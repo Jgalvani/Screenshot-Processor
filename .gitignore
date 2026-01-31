@@ -50,7 +50,7 @@ htmlcov/
 
 # Project specific
 output/
-data/*.docx
+data/
 
 # OS
 .DS_Store

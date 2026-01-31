@@ -3,13 +3,26 @@
 import sys
 import json
 import atexit
+import signal
 from pathlib import Path
 from datetime import datetime
 from playwright.sync_api import sync_playwright
 
 from config import Settings
-from utils import WordReader, OpenAIExtractor
+from utils import WordReader, OpenAIExtractor, ChromeManager
 from pages import GenericPage
+
+
+def _sigterm_handler(signum, frame):
+    """Handle SIGTERM signal to ensure Chrome cleanup."""
+    print("\n    Received SIGTERM, cleaning up...")
+    ChromeManager.cleanup()
+    sys.exit(1)
+
+
+# Register SIGTERM handler (for kill command)
+# SIGINT (Ctrl+C) is handled by KeyboardInterrupt exception
+signal.signal(signal.SIGTERM, _sigterm_handler)
 
 
 def process_url(page, extractor: OpenAIExtractor | None, url: str, index: int) -> dict:
@@ -178,11 +191,8 @@ def main(word_file_path: str | None = None) -> None:
     # Process URLs sequentially
     results = []
 
-    # Import cleanup function
-    from pages.base_page import cleanup_chrome
-
-    # Register cleanup for unexpected exits
-    atexit.register(cleanup_chrome)
+    # Register cleanup for unexpected exits (backup for atexit)
+    atexit.register(ChromeManager.cleanup)
 
     browser = None
     try:
@@ -207,10 +217,10 @@ def main(word_file_path: str | None = None) -> None:
 
     finally:
         # Always cleanup Chrome process
-        cleanup_chrome()
+        ChromeManager.cleanup()
         # Unregister atexit since we've already cleaned up
         try:
-            atexit.unregister(cleanup_chrome)
+            atexit.unregister(ChromeManager.cleanup)
         except Exception:
             pass
 

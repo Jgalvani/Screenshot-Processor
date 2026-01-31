@@ -1,9 +1,6 @@
 """Base page class for Page Object Model implementation."""
 
-import subprocess
 import time
-import os
-import signal
 from pathlib import Path
 from playwright.sync_api import Page, Browser, Playwright
 
@@ -11,98 +8,7 @@ from config import Settings
 from utils.human_behavior import HumanBehavior
 from utils.screenshot_handler import ScreenshotHandler
 from utils.antibot import AntibotHandler, CookieHandler, ModalHandler
-
-
-# Global reference to Chrome process for cleanup
-_chrome_process = None
-
-
-def _launch_chrome_with_debugging(port: int = 9222) -> subprocess.Popen:
-    """Launch Chrome with remote debugging enabled."""
-    global _chrome_process
-    import urllib.request
-
-    # Kill any existing Chrome debug instances
-    subprocess.run(['pkill', '-f', 'Chrome.*remote-debugging'], capture_output=True)
-    time.sleep(1)
-
-    # Chrome path for macOS
-    chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-
-    # Create a temporary profile directory
-    profile_dir = f"/tmp/chrome-debug-profile-{port}"
-
-    cmd = [
-        chrome_path,
-        f"--remote-debugging-port={port}",
-        f"--user-data-dir={profile_dir}",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--disable-default-apps",
-        "--disable-popup-blocking",
-        "--disable-translate",
-        "--disable-background-timer-throttling",
-        "--disable-renderer-backgrounding",
-        "--disable-device-discovery-notifications",
-        "--window-size=1920,1080",
-        "about:blank"
-    ]
-
-    # Launch Chrome in background
-    _chrome_process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        preexec_fn=os.setpgrp
-    )
-
-    # Wait for Chrome to be ready (check if debugging port is open)
-    for i in range(10):
-        time.sleep(1)
-        try:
-            urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1)
-            print(f"    Chrome started on port {port}")
-            break
-        except Exception:
-            if i == 9:
-                print(f"    Warning: Chrome may not have started properly")
-
-    return _chrome_process
-
-
-def cleanup_chrome():
-    """Clean up Chrome process on exit."""
-    global _chrome_process
-
-    # First try to kill the tracked process
-    if _chrome_process:
-        try:
-            # Try SIGTERM first (graceful)
-            os.killpg(os.getpgid(_chrome_process.pid), signal.SIGTERM)
-            time.sleep(1)
-        except Exception:
-            pass
-
-        try:
-            # Force kill if still running
-            if _chrome_process.poll() is None:
-                os.killpg(os.getpgid(_chrome_process.pid), signal.SIGKILL)
-        except Exception:
-            pass
-
-        _chrome_process = None
-
-    # Also kill any remaining Chrome debug instances
-    try:
-        subprocess.run(
-            ['pkill', '-f', 'Chrome.*remote-debugging'],
-            capture_output=True,
-            timeout=5
-        )
-    except Exception:
-        pass
-
-    print("    Chrome process cleaned up")
+from utils.chrome_manager import ChromeManager
 
 
 class BasePage:
@@ -135,7 +41,7 @@ class BasePage:
             Tuple of (Browser, Page)
         """
         # Launch Chrome with remote debugging
-        _launch_chrome_with_debugging(port=9222)
+        ChromeManager.launch(port=9222)
 
         # Connect to Chrome via CDP
         browser = playwright.chromium.connect_over_cdp("http://127.0.0.1:9222")
