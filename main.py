@@ -12,7 +12,7 @@ from utils import WordReader, OpenAIExtractor
 from pages import GenericPage
 
 
-def process_url(page, extractor: OpenAIExtractor, url: str, index: int) -> dict:
+def process_url(page, extractor: OpenAIExtractor | None, url: str, index: int) -> dict:
     """
     Process a single URL: navigate, screenshot, and extract data.
 
@@ -164,12 +164,16 @@ def main(word_file_path: str | None = None) -> None:
     for i, url in enumerate(urls, 1):
         print(f"  {i}. {url}")
 
-    # Initialize OpenAI extractor
-    try:
-        extractor = OpenAIExtractor()
-    except ValueError as e:
-        print(f"\nOpenAI setup error: {e}")
-        sys.exit(1)
+    # Initialize OpenAI extractor (skip if SKIP_EXTRACTION is enabled)
+    extractor = None
+    if Settings.SKIP_EXTRACTION:
+        print("\n[SKIP_EXTRACTION mode] Skipping OpenAI extraction")
+    else:
+        try:
+            extractor = OpenAIExtractor()
+        except ValueError as e:
+            print(f"\nOpenAI setup error: {e}")
+            sys.exit(1)
 
     # Process URLs sequentially
     results = []

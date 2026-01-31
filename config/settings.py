@@ -18,6 +18,7 @@ class Settings:
     # OpenAI configuration
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+    SKIP_EXTRACTION = os.getenv("SKIP_EXTRACTION", "false").lower() == "true"
 
     # Browser configuration
     BROWSER_HEADLESS = os.getenv("BROWSER_HEADLESS", "false").lower() == "true"
@@ -44,6 +45,6 @@ class Settings:
     def validate(cls) -> list[str]:
         """Validate required settings and return list of errors."""
         errors = []
-        if not cls.OPENAI_API_KEY:
+        if not cls.SKIP_EXTRACTION and not cls.OPENAI_API_KEY:
             errors.append("OPENAI_API_KEY is not set in environment variables")
         return errors
