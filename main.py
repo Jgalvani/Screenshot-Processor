@@ -25,7 +25,7 @@ def _sigterm_handler(signum, frame):
 signal.signal(signal.SIGTERM, _sigterm_handler)
 
 
-def process_url(page, extractor: OpenAIExtractor | None, url: str, index: int) -> dict:
+def process_url(page, extractor: OpenAIExtractor | None, url: str, index: int, output_dir: Path) -> dict:
     """
     Process a single URL: navigate, screenshot, and extract data.
 
@@ -34,13 +34,14 @@ def process_url(page, extractor: OpenAIExtractor | None, url: str, index: int) -
         extractor: OpenAI extractor instance
         url: URL to process
         index: URL index for naming
+        output_dir: Output directory for screenshots
 
     Returns:
         Dictionary with processing results
     """
     print(f"\n[{index}] Processing: {url}")
 
-    generic_page = GenericPage(page, openai_extractor=extractor)
+    generic_page = GenericPage(page, openai_extractor=extractor, output_dir=output_dir)
 
     try:
         # Navigate to URL
@@ -105,13 +106,12 @@ def save_results(results: list[dict], output_dir: Path) -> Path:
 
     Args:
         results: List of processing results
-        output_dir: Output directory
+        output_dir: Output directory (session folder)
 
     Returns:
         Path to the results file
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_file = output_dir / f"results_{timestamp}.json"
+    results_file = output_dir / "results.json"
 
     # Convert Path objects to strings for JSON serialization
     serializable_results = []
@@ -188,6 +188,12 @@ def main(word_file_path: str | None = None) -> None:
             print(f"\nOpenAI setup error: {e}")
             sys.exit(1)
 
+    # Create session folder with date
+    session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    session_dir = Settings.OUTPUT_DIR / f"session_{session_timestamp}"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\nSession folder: {session_dir}")
+
     # Process URLs sequentially
     results = []
 
@@ -201,7 +207,7 @@ def main(word_file_path: str | None = None) -> None:
 
             try:
                 for index, url in enumerate(urls, 1):
-                    result = process_url(page, extractor, url, index)
+                    result = process_url(page, extractor, url, index, session_dir)
                     results.append(result)
 
             finally:
@@ -224,8 +230,8 @@ def main(word_file_path: str | None = None) -> None:
         except Exception:
             pass
 
-    # Save results
-    results_file = save_results(results, Settings.OUTPUT_DIR)
+    # Save results in session folder
+    results_file = save_results(results, session_dir)
 
     # Summary
     print("\n" + "=" * 60)

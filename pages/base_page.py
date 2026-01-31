@@ -14,16 +14,17 @@ from utils.chrome_manager import ChromeManager
 class BasePage:
     """Base class for all page objects in the POM structure."""
 
-    def __init__(self, page: Page):
+    def __init__(self, page: Page, output_dir: Path | None = None):
         """
         Initialize BasePage with a Playwright page.
 
         Args:
             page: Playwright Page object
+            output_dir: Optional output directory for screenshots
         """
         self.page = page
         self.human = HumanBehavior(page)
-        self.screenshot = ScreenshotHandler()
+        self.screenshot = ScreenshotHandler(output_dir=output_dir)
         self.antibot = AntibotHandler(page)
         self.cookie_handler = CookieHandler(page)
         self.modal_handler = ModalHandler(page)

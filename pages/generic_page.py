@@ -9,15 +9,16 @@ from pathlib import Path
 class GenericPage(BasePage):
     """Generic page handler for any website URL."""
 
-    def __init__(self, page, openai_extractor: OpenAIExtractor | None = None):
+    def __init__(self, page, openai_extractor: OpenAIExtractor | None = None, output_dir: Path | None = None):
         """
         Initialize GenericPage.
 
         Args:
             page: Playwright Page object
             openai_extractor: Optional OpenAI extractor instance
+            output_dir: Optional output directory for screenshots
         """
-        super().__init__(page)
+        super().__init__(page, output_dir=output_dir)
         self.extractor = openai_extractor
     
     def getResult(self, screenshot_path: Path, extraction_prompt: str | None = None) -> dict:
