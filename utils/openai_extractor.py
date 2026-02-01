@@ -1,6 +1,7 @@
 """OpenAI API integration for extracting data from screenshots."""
 
 import base64
+import re
 from pathlib import Path
 from textwrap import dedent
 
@@ -171,7 +172,6 @@ class OpenAIExtractor:
 
     def _parse_price(self, value: str | None) -> float | None:
         """Parse a price string to float, handling various currency formats."""
-        import re
         if not value:
             return None
         try:

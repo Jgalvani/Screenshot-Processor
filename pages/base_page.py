@@ -1,5 +1,6 @@
 """Base page class for Page Object Model implementation."""
 
+import random
 import time
 from pathlib import Path
 from playwright.sync_api import Page, Browser, Playwright
@@ -61,8 +62,6 @@ class BasePage:
         Args:
             url: Target URL
         """
-        import time
-
         try:
             self.page.goto(url, timeout=Settings.PAGE_LOAD_TIMEOUT, wait_until="domcontentloaded")
         except Exception:
@@ -90,9 +89,6 @@ class BasePage:
 
     def _handle_verification_popup(self) -> None:
         """Handle any verification popups that appear during navigation."""
-        import time
-        import random
-
         try:
             # Brief check for verification elements
             time.sleep(0.3)
@@ -158,8 +154,6 @@ class BasePage:
 
     def _handle_cookie_consent(self) -> None:
         """Handle cookie consent modals that appear after page load."""
-        import time
-
         try:
             # Check if cookie modal is present and accept it
             if self.cookie_handler.detect_cookie_modal():
@@ -187,9 +181,7 @@ class BasePage:
 
     def get_title(self) -> str:
         """Get the page title with retry on context destruction."""
-        import time
-
-        for attempt in range(3):
+        for _ in range(3):
             try:
                 return self.page.title()
             except Exception as e:

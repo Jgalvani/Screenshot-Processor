@@ -130,16 +130,16 @@ class ModalHandler:
 
     # Selectors for modal containers
     MODAL_CONTAINER_SELECTORS = [
-        "[role='dialog']:visible",
-        "[class*='modal']:visible",
-        "[class*='popup']:visible",
-        "[class*='overlay']:visible",
-        "[class*='nudge']:visible",
-        "[class*='flyout']:visible",
-        ".zds-modal:visible",
-        "[class*='sign-in']:visible",
-        "[class*='newsletter']:visible",
-        "[class*='geolocation']:visible",
+        "[role='dialog']",
+        "[class*='modal']",
+        "[class*='popup']",
+        "[class*='overlay']",
+        "[class*='nudge']",
+        "[class*='flyout']",
+        ".zds-modal",
+        "[class*='sign-in']",
+        "[class*='newsletter']",
+        "[class*='geolocation']",
     ]
 
     def __init__(self, page):
@@ -153,20 +153,14 @@ class ModalHandler:
         Returns:
             True if a modal is detected
         """
-        try:
-            for selector in self.MODAL_CONTAINER_SELECTORS:
-                try:
-                    # Remove :visible pseudo-selector for count check
-                    base_selector = selector.replace(":visible", "")
-                    if self.page.locator(base_selector).count() > 0:
-                        element = self.page.locator(base_selector).first
-                        if element.is_visible():
-                            return True
-                except Exception:
-                    continue
-            return False
-        except Exception:
-            return False
+        for selector in self.MODAL_CONTAINER_SELECTORS:
+            try:
+                if self.page.locator(selector).count() > 0:
+                    if self.page.locator(selector).first.is_visible():
+                        return True
+            except Exception:
+                continue
+        return False
 
     def close_modal(self) -> bool:
         """
@@ -175,61 +169,57 @@ class ModalHandler:
         Returns:
             True if a modal was closed
         """
-        try:
-            # Try each close selector
-            for selector in self.MODAL_CLOSE_SELECTORS:
-                try:
-                    locator = self.page.locator(selector)
-                    if locator.count() > 0:
-                        button = locator.first
-                        if button.is_visible():
-                            button.click(timeout=2000)
-                            time.sleep(random.uniform(0.3, 0.6))
-                            print("    Modal closed")
-                            return True
-                except Exception:
-                    continue
-
-            # Fallback: Try to find any close button in visible dialogs
+        # Try each close selector
+        for selector in self.MODAL_CLOSE_SELECTORS:
             try:
-                close_clicked = self.page.evaluate("""
-                    () => {
-                        // Find visible dialogs/modals
-                        const modals = document.querySelectorAll('[role="dialog"], [class*="modal"], [class*="popup"], [class*="overlay"], [class*="nudge"]');
+                locator = self.page.locator(selector)
+                if locator.count() > 0:
+                    button = locator.first
+                    if button.is_visible():
+                        button.click(timeout=2000)
+                        time.sleep(random.uniform(0.3, 0.6))
+                        print("    Modal closed")
+                        return True
+            except Exception:
+                continue
 
-                        for (const modal of modals) {
-                            if (modal.offsetParent === null) continue; // Skip hidden
+        # Fallback: Try to find any close button in visible dialogs
+        try:
+            close_clicked = self.page.evaluate("""
+                () => {
+                    // Find visible dialogs/modals
+                    const modals = document.querySelectorAll('[role="dialog"], [class*="modal"], [class*="popup"], [class*="overlay"], [class*="nudge"]');
 
-                            // Look for close buttons inside
-                            const closeButtons = modal.querySelectorAll('button, [role="button"]');
-                            for (const btn of closeButtons) {
-                                const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-                                const className = (btn.className || '').toLowerCase();
-                                const isClose = ariaLabel.includes('close') ||
-                                               className.includes('close') ||
-                                               btn.querySelector('svg[class*="close"]') ||
-                                               btn.querySelector('[class*="icon-close"]');
+                    for (const modal of modals) {
+                        if (modal.offsetParent === null) continue; // Skip hidden
 
-                                if (isClose && btn.offsetParent !== null) {
-                                    btn.click();
-                                    return true;
-                                }
+                        // Look for close buttons inside
+                        const closeButtons = modal.querySelectorAll('button, [role="button"]');
+                        for (const btn of closeButtons) {
+                            const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+                            const className = (btn.className || '').toLowerCase();
+                            const isClose = ariaLabel.includes('close') ||
+                                           className.includes('close') ||
+                                           btn.querySelector('svg[class*="close"]') ||
+                                           btn.querySelector('[class*="icon-close"]');
+
+                            if (isClose && btn.offsetParent !== null) {
+                                btn.click();
+                                return true;
                             }
                         }
-                        return false;
                     }
-                """)
-                if close_clicked:
-                    time.sleep(random.uniform(0.3, 0.6))
-                    print("    Modal closed (JS fallback)")
-                    return True
-            except Exception:
-                pass
-
-            return False
-
+                    return false;
+                }
+            """)
+            if close_clicked:
+                time.sleep(random.uniform(0.3, 0.6))
+                print("    Modal closed (JS fallback)")
+                return True
         except Exception:
-            return False
+            pass
+
+        return False
 
     def close_all_modals(self, max_attempts: int = 3) -> int:
         """
@@ -340,6 +330,17 @@ class CookieHandler:
         """Initialize CookieHandler with a Playwright page."""
         self.page = page
 
+    def _has_visible_element(self, selectors: list[str]) -> bool:
+        """Check if any selector in the list has a visible element."""
+        for selector in selectors:
+            try:
+                if self.page.locator(selector).count() > 0:
+                    if self.page.locator(selector).first.is_visible():
+                        return True
+            except Exception:
+                continue
+        return False
+
     def detect_cookie_modal(self) -> bool:
         """
         Detect if a cookie consent modal/banner is present on the page.
@@ -360,36 +361,21 @@ class CookieHandler:
                 return False
 
             # Check for modal/banner containers
-            for selector in self.COOKIE_MODAL_SELECTORS:
-                try:
-                    if self.page.locator(selector).count() > 0:
-                        element = self.page.locator(selector).first
-                        if element.is_visible():
-                            return True
-                except Exception:
-                    continue
+            if self._has_visible_element(self.COOKIE_MODAL_SELECTORS):
+                return True
 
             # Check for accept buttons visibility
-            for selector in self.COOKIE_ACCEPT_SELECTORS[:20]:  # Check main selectors
-                try:
-                    if self.page.locator(selector).count() > 0:
-                        element = self.page.locator(selector).first
-                        if element.is_visible():
-                            return True
-                except Exception:
-                    continue
+            if self._has_visible_element(self.COOKIE_ACCEPT_SELECTORS[:20]):
+                return True
 
             return False
 
         except Exception:
             return False
 
-    def accept_cookies(self, timeout: float = 3.0) -> bool:
+    def accept_cookies(self) -> bool:
         """
         Attempt to accept cookies by clicking the accept button.
-
-        Args:
-            timeout: Maximum time to wait for cookie modal
 
         Returns:
             True if cookies were accepted successfully
@@ -491,28 +477,24 @@ class CookieHandler:
         Returns:
             True if modal was dismissed
         """
-        try:
-            close_selectors = [
-                "[class*='cookie'] button[class*='close']",
-                "[class*='cookie'] [aria-label='close']",
-                "[class*='consent'] button[class*='close']",
-                "#onetrust-close-btn-container button",
-                ".cookie-banner__close",
-            ]
+        close_selectors = [
+            "[class*='cookie'] button[class*='close']",
+            "[class*='cookie'] [aria-label='close']",
+            "[class*='consent'] button[class*='close']",
+            "#onetrust-close-btn-container button",
+            ".cookie-banner__close",
+        ]
 
-            for selector in close_selectors:
-                try:
-                    if self.page.locator(selector).count() > 0:
-                        self.page.locator(selector).first.click()
-                        time.sleep(random.uniform(0.3, 0.6))
-                        return True
-                except Exception:
-                    continue
+        for selector in close_selectors:
+            try:
+                if self.page.locator(selector).count() > 0:
+                    self.page.locator(selector).first.click()
+                    time.sleep(random.uniform(0.3, 0.6))
+                    return True
+            except Exception:
+                continue
 
-            return False
-
-        except Exception:
-            return False
+        return False
 
 
 class AntibotHandler:
@@ -756,10 +738,9 @@ class AntibotHandler:
 
                 # End position (track end with some margin)
                 end_x = track_box["x"] + track_box["width"] - 10
-                end_y = start_y
 
                 # Perform human-like drag
-                self._human_drag(start_x, start_y, end_x, end_y)
+                self._human_drag(start_x, start_y, end_x)
                 time.sleep(random.uniform(0.5, 1.5))
                 return True
 
@@ -827,7 +808,7 @@ class AntibotHandler:
                     # Try dragging to approximately 60-70% of the track (common puzzle position)
                     for offset_percent in [0.65, 0.55, 0.75, 0.45, 0.85]:
                         end_x = start_x + 200 * offset_percent  # Approximate track width
-                        self._human_drag(start_x, start_y, end_x, start_y)
+                        self._human_drag(start_x, start_y, end_x)
                         time.sleep(1.0)
 
                         # Check if puzzle was solved (slider might disappear)
@@ -849,7 +830,7 @@ class AntibotHandler:
                     # Try multiple positions
                     for offset_percent in [0.65, 0.55, 0.75, 0.45, 0.85]:
                         end_x = start_x + 200 * offset_percent
-                        self._human_drag(start_x, start_y, end_x, start_y)
+                        self._human_drag(start_x, start_y, end_x)
                         time.sleep(1.0)
 
                         if self.page.locator("text='Slide to complete'").count() == 0:
@@ -1001,39 +982,21 @@ class AntibotHandler:
             if turnstile_iframe.count() > 0:
                 box = turnstile_iframe.first.bounding_box()
                 if box:
-                    click_x = box["x"] + min(35, box["width"] / 4)
-                    click_y = box["y"] + box["height"] / 2
-                    self._smooth_mouse_move(click_x, click_y)
-                    time.sleep(random.uniform(0.2, 0.5))
-                    self.page.mouse.click(click_x, click_y)
-                    time.sleep(random.uniform(3.0, 6.0))
-                    return True
+                    return self._click_turnstile_checkbox(box)
 
             # Strategy 2: Find iframe by id pattern (cf-chl-widget-*)
             cf_widget_iframe = self.page.locator("iframe[id^='cf-chl-widget']")
             if cf_widget_iframe.count() > 0:
                 box = cf_widget_iframe.first.bounding_box()
                 if box:
-                    click_x = box["x"] + min(35, box["width"] / 4)
-                    click_y = box["y"] + box["height"] / 2
-                    self._smooth_mouse_move(click_x, click_y)
-                    time.sleep(random.uniform(0.2, 0.5))
-                    self.page.mouse.click(click_x, click_y)
-                    time.sleep(random.uniform(3.0, 6.0))
-                    return True
+                    return self._click_turnstile_checkbox(box)
 
             # Strategy 3: Find any iframe from challenges.cloudflare.com
             cf_challenge_iframe = self.page.locator("iframe[src*='challenges.cloudflare.com']")
             if cf_challenge_iframe.count() > 0:
                 box = cf_challenge_iframe.first.bounding_box()
                 if box:
-                    click_x = box["x"] + min(35, box["width"] / 4)
-                    click_y = box["y"] + box["height"] / 2
-                    self._smooth_mouse_move(click_x, click_y)
-                    time.sleep(random.uniform(0.2, 0.5))
-                    self.page.mouse.click(click_x, click_y)
-                    time.sleep(random.uniform(3.0, 6.0))
-                    return True
+                    return self._click_turnstile_checkbox(box)
 
             # Strategy 4: Use JavaScript to find iframe in closed shadow DOM and get its position
             # The shadow DOM container typically has a visible size matching the iframe
@@ -1094,13 +1057,7 @@ class AntibotHandler:
             """)
 
             if iframe_info and iframe_info.get("found"):
-                click_x = iframe_info["x"] + min(35, iframe_info["width"] / 4)
-                click_y = iframe_info["y"] + iframe_info["height"] / 2
-                self._smooth_mouse_move(click_x, click_y)
-                time.sleep(random.uniform(0.2, 0.5))
-                self.page.mouse.click(click_x, click_y)
-                time.sleep(random.uniform(3.0, 6.0))
-                return True
+                return self._click_turnstile_checkbox(iframe_info)
 
             # Strategy 5: Find the hidden input and click near it
             # The cf-turnstile-response input is usually next to the widget
@@ -1125,13 +1082,7 @@ class AntibotHandler:
                     }
                 """)
                 if parent_box and parent_box.get("found"):
-                    click_x = parent_box["x"] + min(35, parent_box["width"] / 4)
-                    click_y = parent_box["y"] + parent_box["height"] / 2
-                    self._smooth_mouse_move(click_x, click_y)
-                    time.sleep(random.uniform(0.2, 0.5))
-                    self.page.mouse.click(click_x, click_y)
-                    time.sleep(random.uniform(3.0, 6.0))
-                    return True
+                    return self._click_turnstile_checkbox(parent_box)
 
             # Strategy 6: Click on fixed coordinates based on typical Cloudflare layout
             # The Turnstile widget is usually centered horizontally and appears below the title
@@ -1140,13 +1091,14 @@ class AntibotHandler:
                 text_box = verify_text.first.bounding_box()
                 if text_box:
                     # Widget typically appears below the "Verify you are human" text
-                    click_x = text_box["x"] + 35  # Checkbox is on the left
-                    click_y = text_box["y"] + text_box["height"] + 50  # Below the text
-                    self._smooth_mouse_move(click_x, click_y)
-                    time.sleep(random.uniform(0.2, 0.5))
-                    self.page.mouse.click(click_x, click_y)
-                    time.sleep(random.uniform(3.0, 6.0))
-                    return True
+                    # Create a pseudo box for the expected widget position
+                    widget_box = {
+                        "x": text_box["x"],
+                        "y": text_box["y"] + text_box["height"] + 20,
+                        "width": 300,
+                        "height": 65
+                    }
+                    return self._click_turnstile_checkbox(widget_box)
 
             # Strategy 7: Fallback to label-based checkbox (older Cloudflare style)
             checkbox = self.page.locator("label.cb-lb input[type='checkbox']")
@@ -1277,8 +1229,27 @@ class AntibotHandler:
         time.sleep(random.uniform(0.1, 0.3))
         self.page.mouse.click(x, y)
 
-    def _human_drag(self, start_x: float, start_y: float, end_x: float, end_y: float) -> None:
-        """Perform a human-like drag operation."""
+    def _click_turnstile_checkbox(self, box: dict) -> bool:
+        """
+        Click on a Turnstile checkbox given its bounding box.
+        The checkbox is typically on the left side of the widget.
+
+        Args:
+            box: Bounding box with x, y, width, height
+
+        Returns:
+            True after clicking
+        """
+        click_x = box["x"] + min(35, box["width"] / 4)
+        click_y = box["y"] + box["height"] / 2
+        self._smooth_mouse_move(click_x, click_y)
+        time.sleep(random.uniform(0.2, 0.5))
+        self.page.mouse.click(click_x, click_y)
+        time.sleep(random.uniform(3.0, 6.0))
+        return True
+
+    def _human_drag(self, start_x: float, start_y: float, end_x: float) -> None:
+        """Perform a human-like horizontal drag operation."""
         # Move to start position
         self._smooth_mouse_move(start_x, start_y)
         time.sleep(random.uniform(0.1, 0.3))
