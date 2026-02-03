@@ -7,6 +7,7 @@ from enum import Enum
 from playwright.sync_api import Page
 
 from config import Settings
+from utils.types import BoundingBox
 
 
 class ScrollDirection(Enum):
@@ -103,7 +104,7 @@ class HumanBehavior:
             selector: CSS selector for the element to click
         """
         element = self.page.locator(selector)
-        bounding_box = element.bounding_box()
+        bounding_box: BoundingBox | None = element.bounding_box()
 
         if bounding_box:
             # Add slight randomness within the element

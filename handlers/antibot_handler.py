@@ -1,485 +1,11 @@
-"""Antibot detection and evasion utilities."""
+"""Antibot detection and challenge solving utilities."""
 
 import random
 import time
+
 from playwright.sync_api import Page
 
-
-# Modern user agents pool (Chrome, Firefox, Safari, Edge on Windows/Mac)
-USER_AGENTS = [
-    # Chrome on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    # Chrome on Mac
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    # Firefox on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
-    # Firefox on Mac
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:123.0) Gecko/20100101 Firefox/123.0",
-    # Safari on Mac
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-    # Edge on Windows
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0",
-]
-
-# Common screen resolutions
-SCREEN_RESOLUTIONS = [
-    {"width": 1920, "height": 1080},
-    {"width": 1366, "height": 768},
-    {"width": 1536, "height": 864},
-    {"width": 1440, "height": 900},
-    {"width": 1280, "height": 720},
-    {"width": 2560, "height": 1440},
-]
-
-# Timezones
-TIMEZONES = [
-    "America/New_York",
-    "America/Chicago",
-    "America/Denver",
-    "America/Los_Angeles",
-    "Europe/London",
-    "Europe/Paris",
-]
-
-
-def get_random_user_agent() -> str:
-    """Get a random user agent string."""
-    return random.choice(USER_AGENTS)
-
-
-def get_random_viewport() -> dict:
-    """Get a random viewport size."""
-    return random.choice(SCREEN_RESOLUTIONS)
-
-
-def get_random_timezone() -> str:
-    """Get a random timezone."""
-    return random.choice(TIMEZONES)
-
-
-def get_browser_context_options() -> dict:
-    """Get randomized browser context options for better antibot evasion."""
-    user_agent = get_random_user_agent()
-    viewport = get_random_viewport()
-    timezone = get_random_timezone()
-
-    # Determine locale based on user agent
-    locale = "en-US"
-    if "Firefox" in user_agent and "rv:123" in user_agent:
-        locale = random.choice(["en-US", "en-GB"])
-
-    return {
-        "user_agent": user_agent,
-        "viewport": viewport,
-        "timezone_id": timezone,
-        "locale": locale,
-        "color_scheme": random.choice(["light", "dark", "no-preference"]),
-        "has_touch": False,
-        "is_mobile": False,
-        "java_script_enabled": True,
-    }
-
-
-class ModalHandler:
-    """Handles various modal popups (sign-in, country selection, newsletters, etc.)."""
-
-    # Common modal close button selectors
-    MODAL_CLOSE_SELECTORS = [
-        # Generic close buttons
-        "button[aria-label='Close']",
-        "button[aria-label='close']",
-        "[aria-label='Close'] button",
-        "[aria-label='close'] button",
-        # REI specific
-        "[aria-label='Close sign in nudge']",
-        ".sign-in-nudge__close",
-        ".sign-in-nudge__flyout-close",
-        ".cdr-modal__close-button_16-2-1",
-        # Zara specific
-        ".zds-dialog-close-button",
-        ".zds-dialog-icon-button.zds-dialog-close-button",
-        # Generic patterns
-        "[class*='modal'] [class*='close']",
-        "[class*='dialog'] [class*='close']",
-        "[class*='popup'] [class*='close']",
-        "[class*='modal'] button[class*='close']",
-        "[class*='overlay'] [class*='close']",
-        "[role='dialog'] button[aria-label*='close' i]",
-        "[role='dialog'] button[aria-label*='Close']",
-        # Newsletter/signup popups
-        "[class*='newsletter'] [class*='close']",
-        "[class*='signup'] [class*='close']",
-        "[class*='sign-up'] [class*='close']",
-        "[class*='email'] [class*='close']",
-        # Country/region selectors
-        "[class*='country'] [class*='close']",
-        "[class*='region'] [class*='close']",
-        "[class*='geolocation'] [class*='close']",
-        "[class*='locale'] [class*='close']",
-        # X/close icons (common patterns)
-        "button svg[class*='close']",
-        "button [class*='icon-close']",
-        "button[class*='icon-only'] svg",
-    ]
-
-    # Selectors for modal containers
-    MODAL_CONTAINER_SELECTORS = [
-        "[role='dialog']",
-        "[class*='modal']",
-        "[class*='popup']",
-        "[class*='overlay']",
-        "[class*='nudge']",
-        "[class*='flyout']",
-        ".zds-modal",
-        "[class*='sign-in']",
-        "[class*='newsletter']",
-        "[class*='geolocation']",
-    ]
-
-    def __init__(self, page):
-        """Initialize ModalHandler with a Playwright page."""
-        self.page = page
-
-    def detect_modal(self) -> bool:
-        """
-        Detect if a modal/popup is visible on the page.
-
-        Returns:
-            True if a modal is detected
-        """
-        for selector in self.MODAL_CONTAINER_SELECTORS:
-            try:
-                if self.page.locator(selector).count() > 0:
-                    if self.page.locator(selector).first.is_visible():
-                        return True
-            except Exception:
-                continue
-        return False
-
-    def close_modal(self) -> bool:
-        """
-        Attempt to close any visible modal by clicking the close button.
-
-        Returns:
-            True if a modal was closed
-        """
-        # Try each close selector
-        for selector in self.MODAL_CLOSE_SELECTORS:
-            try:
-                locator = self.page.locator(selector)
-                if locator.count() > 0:
-                    button = locator.first
-                    if button.is_visible():
-                        button.click(timeout=2000)
-                        time.sleep(random.uniform(0.3, 0.6))
-                        print("    Modal closed")
-                        return True
-            except Exception:
-                continue
-
-        # Fallback: Try to find any close button in visible dialogs
-        try:
-            close_clicked = self.page.evaluate("""
-                () => {
-                    // Find visible dialogs/modals
-                    const modals = document.querySelectorAll('[role="dialog"], [class*="modal"], [class*="popup"], [class*="overlay"], [class*="nudge"]');
-
-                    for (const modal of modals) {
-                        if (modal.offsetParent === null) continue; // Skip hidden
-
-                        // Look for close buttons inside
-                        const closeButtons = modal.querySelectorAll('button, [role="button"]');
-                        for (const btn of closeButtons) {
-                            const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-                            const className = (btn.className || '').toLowerCase();
-                            const isClose = ariaLabel.includes('close') ||
-                                           className.includes('close') ||
-                                           btn.querySelector('svg[class*="close"]') ||
-                                           btn.querySelector('[class*="icon-close"]');
-
-                            if (isClose && btn.offsetParent !== null) {
-                                btn.click();
-                                return true;
-                            }
-                        }
-                    }
-                    return false;
-                }
-            """)
-            if close_clicked:
-                time.sleep(random.uniform(0.3, 0.6))
-                print("    Modal closed (JS fallback)")
-                return True
-        except Exception:
-            pass
-
-        return False
-
-    def close_all_modals(self, max_attempts: int = 3) -> int:
-        """
-        Attempt to close all visible modals.
-
-        Args:
-            max_attempts: Maximum number of modals to try to close
-
-        Returns:
-            Number of modals closed
-        """
-        closed_count = 0
-        for _ in range(max_attempts):
-            if self.detect_modal():
-                if self.close_modal():
-                    closed_count += 1
-                    time.sleep(random.uniform(0.3, 0.5))
-                else:
-                    break
-            else:
-                break
-        return closed_count
-
-
-class CookieHandler:
-    """Handles cookie consent modals and banners."""
-
-    # Common cookie consent selectors for various platforms
-    # Order matters - more specific selectors first
-    COOKIE_ACCEPT_SELECTORS = [
-        # Site-specific selectors (highest priority)
-        # Costco
-        "button:has-text('Confirm My Choices')",
-        # Shein
-        "button:has-text('Accept All'):visible",
-        "button:has-text('Reject All')",  # Shein has this option
-        # Nike/Adidas specific
-        "[data-testid='accept-cookies']",
-        # OneTrust (very common - used by many sites)
-        "#onetrust-accept-btn-handler",
-        "button[id*='onetrust-accept']",
-        # Generic "Accept All" buttons (most common)
-        "button:has-text('Accept All')",
-        "button:has-text('Accept all')",
-        "button:has-text('Accept All Cookies')",
-        "button:has-text('Accept all cookies')",
-        "button:has-text('Accepter tout')",
-        "button:has-text('Tout accepter')",
-        "button:has-text('Akzeptieren')",
-        "button:has-text('Alle akzeptieren')",
-        "button:has-text('Aceptar todo')",
-        "button:has-text('Accetta tutto')",
-        # Generic "I Accept" / "I Agree" buttons
-        "button:has-text('I Accept')",
-        "button:has-text('I Agree')",
-        "button:has-text('Agree')",
-        # CookieBot
-        "#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll",
-        "#CybotCookiebotDialogBodyButtonAccept",
-        "a#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll",
-        # TrustArc / TrustE
-        ".trustarc-agree-btn",
-        "#truste-consent-button",
-        ".call[data-testid='uc-accept-all-button']",
-        # Quantcast
-        ".qc-cmp2-summary-buttons button[mode='primary']",
-        "button.css-47sehv",
-        # Didomi
-        "#didomi-notice-agree-button",
-        ".didomi-continue-without-agreeing",
-        # Cookielaw
-        ".cookielaw-accept",
-        "#cookiescript_accept",
-        # Generic class-based selectors (lower priority - might match wrong buttons)
-        "[class*='cookie'] button:has-text('Accept')",
-        "[class*='consent'] button:has-text('Accept')",
-        # Link-based accept buttons
-        "a:has-text('Accept All')",
-        "a:has-text('Accept all cookies')",
-    ]
-
-    # Selectors for cookie modal/banner containers
-    COOKIE_MODAL_SELECTORS = [
-        "[class*='cookie-banner']",
-        "[class*='cookie-consent']",
-        "[class*='cookie-notice']",
-        "[class*='cookie-modal']",
-        "[class*='cookie-popup']",
-        "[class*='consent-banner']",
-        "[class*='consent-modal']",
-        "[class*='gdpr-banner']",
-        "[class*='privacy-banner']",
-        "[id*='cookie-banner']",
-        "[id*='cookie-consent']",
-        "[id*='cookie-notice']",
-        "[id*='onetrust']",
-        "[id*='CybotCookiebot']",
-        "[id*='didomi']",
-        "[id*='truste']",
-        "#cookiescript_injected",
-        "[aria-label*='cookie']",
-        "[aria-label*='consent']",
-        "[role='dialog']:has-text('cookie')",
-        "[role='dialog']:has-text('Cookie')",
-    ]
-
-    def __init__(self, page):
-        """Initialize CookieHandler with a Playwright page."""
-        self.page = page
-
-    def _has_visible_element(self, selectors: list[str]) -> bool:
-        """Check if any selector in the list has a visible element."""
-        for selector in selectors:
-            try:
-                if self.page.locator(selector).count() > 0:
-                    if self.page.locator(selector).first.is_visible():
-                        return True
-            except Exception:
-                continue
-        return False
-
-    def detect_cookie_modal(self) -> bool:
-        """
-        Detect if a cookie consent modal/banner is present on the page.
-
-        Returns:
-            True if a cookie modal is detected
-        """
-        try:
-            # Check for cookie-related text in the page
-            page_content = self.page.content().lower()
-            cookie_keywords = [
-                'cookie', 'cookies', 'consent', 'gdpr', 'privacy',
-                'accept all', 'accepter', 'akzeptieren'
-            ]
-
-            has_cookie_text = any(keyword in page_content for keyword in cookie_keywords)
-            if not has_cookie_text:
-                return False
-
-            # Check for modal/banner containers
-            return self._has_visible_element(self.COOKIE_MODAL_SELECTORS)
-
-        except Exception:
-            return False
-
-    def accept_cookies(self) -> bool:
-        """
-        Attempt to accept cookies by clicking the accept button.
-
-        Returns:
-            True if cookies were accepted successfully
-        """
-        # Try each accept selector
-        for selector in self.COOKIE_ACCEPT_SELECTORS:
-            try:
-                locator = self.page.locator(selector)
-                if locator.count() > 0:
-                    button = locator.first
-                    if button.is_visible():
-                        # Scroll into view if needed
-                        try:
-                            button.scroll_into_view_if_needed()
-                        except Exception:
-                            pass
-                        time.sleep(random.uniform(0.1, 0.2))
-
-                        # Click the button
-                        try:
-                            button.click(timeout=3000)
-                        except Exception:
-                            # Try force click if normal click fails
-                            button.click(force=True, timeout=3000)
-
-                        print("    Cookie consent accepted")
-
-                        # Some sites reload or navigate after accepting cookies
-                        try:
-                            self.page.wait_for_load_state("domcontentloaded", timeout=5000)
-                        except Exception:
-                            pass
-
-                        return True
-
-            except Exception:
-                continue
-
-        # Fallback: Try JavaScript-based approach for stubborn modals
-        try:
-            clicked = self.page.evaluate("""
-                () => {
-                    const acceptTexts = [
-                        'accept all', 'accept all cookies', 'accepter tout',
-                        'tout accepter', 'i accept', 'i agree', 'allow all',
-                        'confirm my choices'
-                    ];
-
-                    // Texts to avoid - these might navigate to other pages
-                    const avoidTexts = [
-                        'cookie notice', 'cookie policy', 'privacy policy',
-                        'learn more', 'read more', 'manage', 'settings',
-                        'customize', 'preferences'
-                    ];
-
-                    // Find only buttons (not links to avoid navigation)
-                    const buttons = [...document.querySelectorAll('button, [role="button"], input[type="button"], input[type="submit"]')];
-
-                    for (const el of buttons) {
-                        const text = el.textContent.toLowerCase().trim();
-                        const isVisible = el.offsetParent !== null &&
-                                         el.getBoundingClientRect().height > 0;
-
-                        // Skip if text contains words we want to avoid
-                        if (avoidTexts.some(t => text.includes(t))) {
-                            continue;
-                        }
-
-                        if (isVisible && acceptTexts.some(t => text.includes(t))) {
-                            el.click();
-                            return true;
-                        }
-                    }
-                    return false;
-                }
-            """)
-
-            if clicked:
-                time.sleep(random.uniform(0.5, 1.0))
-                print("    Cookie consent accepted (JS fallback)")
-                return True
-        except Exception:
-            pass
-
-        return False
-
-    def dismiss_cookie_modal(self) -> bool:
-        """
-        Try to dismiss/close a cookie modal without accepting.
-
-        Returns:
-            True if modal was dismissed
-        """
-        close_selectors = [
-            "[class*='cookie'] button[class*='close']",
-            "[class*='cookie'] [aria-label='close']",
-            "[class*='consent'] button[class*='close']",
-            "#onetrust-close-btn-container button",
-            ".cookie-banner__close",
-        ]
-
-        for selector in close_selectors:
-            try:
-                if self.page.locator(selector).count() > 0:
-                    self.page.locator(selector).first.click()
-                    time.sleep(random.uniform(0.3, 0.6))
-                    return True
-            except Exception:
-                continue
-
-        return False
+from utils import BoundingBox
 
 
 class AntibotHandler:
@@ -620,9 +146,8 @@ class AntibotHandler:
                     box = checkbox.bounding_box()
 
                     if box:
-                        # Human-like movement to checkbox
                         self._human_move_and_click(box)
-                        time.sleep(random.uniform(0.5, 1.5))
+                        self._wait_for_state_change()
                         return True
 
         except Exception:
@@ -642,10 +167,8 @@ class AntibotHandler:
             checkbox = iframe.locator(self.CAPTCHA_SELECTORS["recaptcha_checkbox_inner"])
 
             if checkbox.count() > 0:
-                # Random delay before clicking
-                time.sleep(random.uniform(0.5, 2.0))
                 checkbox.click()
-                time.sleep(random.uniform(1.0, 3.0))
+                self._wait_for_state_change()
                 return True
 
         except Exception:
@@ -653,7 +176,7 @@ class AntibotHandler:
 
         return False
 
-    def solve_press_and_hold(self, selector: str | None = None, hold_duration: float = None) -> bool:
+    def solve_press_and_hold(self, selector: str | None = None, hold_duration: float | None = None) -> bool:
         """
         Solve a press-and-hold verification button.
 
@@ -678,15 +201,14 @@ class AntibotHandler:
 
                     # Move to button
                     self._smooth_mouse_move(x, y)
-                    time.sleep(random.uniform(0.1, 0.3))
 
-                    # Press and hold
+                    # Press and hold (duration is the actual functionality)
                     duration = hold_duration or random.uniform(2.0, 4.0)
                     self.page.mouse.down()
                     time.sleep(duration)
                     self.page.mouse.up()
 
-                    time.sleep(random.uniform(0.5, 1.0))
+                    self._wait_for_state_change()
                     return True
 
         except Exception:
@@ -726,7 +248,7 @@ class AntibotHandler:
 
                 # Perform human-like drag
                 self._human_drag(start_x, start_y, end_x)
-                time.sleep(random.uniform(0.5, 1.5))
+                self._wait_for_state_change()
                 return True
 
         except Exception:
@@ -807,7 +329,7 @@ class AntibotHandler:
         """
         try:
             # Wait for Cloudflare to process initial checks
-            time.sleep(random.uniform(2.0, 4.0))
+            self._wait_for_state_change()
 
             # First, try the Turnstile-specific solver
             if self.solve_cloudflare_turnstile():
@@ -880,35 +402,22 @@ class AntibotHandler:
         for attempt in range(max_attempts):
             try:
                 # Wait for the Turnstile widget to fully load
-                time.sleep(random.uniform(2.0, 4.0))
+                self._wait_for_state_change()
 
                 # Attempt to solve the Turnstile
                 if self.solve_cloudflare_turnstile():
                     print(f"    Turnstile clicked (attempt {attempt + 1})")
 
                     # Wait for the verification to complete
-                    time.sleep(wait_after_solve)
+                    self._wait_for_state_change(timeout=int(wait_after_solve * 1000))
 
                     # Check if we're still on a challenge page
                     if not self.is_cloudflare_challenge_page():
                         print("    Challenge solved successfully!")
                         return True
 
-                    # Check if page has started redirecting
-                    try:
-                        self.page.wait_for_load_state("domcontentloaded", timeout=10000)
-                        if not self.is_cloudflare_challenge_page():
-                            print("    Challenge solved successfully!")
-                            return True
-                    except Exception:
-                        pass
-
-                # Small delay before retry
-                time.sleep(random.uniform(1.0, 2.0))
-
             except Exception as e:
                 print(f"    Challenge solve attempt {attempt + 1} failed: {e}")
-                time.sleep(random.uniform(1.0, 2.0))
 
         print("    Failed to solve Cloudflare challenge after max attempts")
         return False
@@ -925,7 +434,7 @@ class AntibotHandler:
         """
         try:
             # Wait for the page to stabilize
-            time.sleep(random.uniform(1.5, 3.0))
+            self._wait_for_state_change()
 
             # Strategy 1: Find the Cloudflare Turnstile iframe directly
             turnstile_iframe = self.page.locator("iframe[src*='challenges.cloudflare.com'][src*='turnstile']")
@@ -1042,11 +551,11 @@ class AntibotHandler:
                 if text_box:
                     # Widget typically appears below the "Verify you are human" text
                     # Create a pseudo box for the expected widget position
-                    widget_box = {
+                    widget_box: BoundingBox = {
                         "x": text_box["x"],
                         "y": text_box["y"] + text_box["height"] + 20,
-                        "width": 300,
-                        "height": 65
+                        "width": 300.0,
+                        "height": 65.0
                     }
                     return self._click_turnstile_checkbox(widget_box)
 
@@ -1166,7 +675,14 @@ class AntibotHandler:
             self.page.mouse.move(x, y)
             time.sleep(random.uniform(0.005, 0.02))
 
-    def _human_move_and_click(self, box: dict) -> None:
+    def _wait_for_state_change(self, timeout: int = 5000) -> None:
+        """Wait for page state to change after an action (click, solve, etc.)."""
+        try:
+            self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
+        except Exception:
+            pass
+
+    def _human_move_and_click(self, box: BoundingBox) -> None:
         """Move to element and click with human-like behavior."""
         x = box["x"] + box["width"] / 2 + random.randint(-3, 3)
         y = box["y"] + box["height"] / 2 + random.randint(-3, 3)
@@ -1175,7 +691,7 @@ class AntibotHandler:
         time.sleep(random.uniform(0.1, 0.3))
         self.page.mouse.click(x, y)
 
-    def _click_turnstile_checkbox(self, box: dict) -> bool:
+    def _click_turnstile_checkbox(self, box: BoundingBox) -> bool:
         """
         Click on a Turnstile checkbox given its bounding box.
         The checkbox is typically on the left side of the widget.
@@ -1193,7 +709,7 @@ class AntibotHandler:
         self.page.mouse.click(click_x, click_y)
         return True
 
-    def _try_puzzle_drag_positions(self, handle_box: dict) -> bool:
+    def _try_puzzle_drag_positions(self, handle_box: BoundingBox) -> bool:
         """
         Try dragging a puzzle slider to multiple positions.
 
@@ -1212,14 +728,12 @@ class AntibotHandler:
         for offset_percent in offset_attempts:
             end_x = start_x + track_width * offset_percent
             self._human_drag(start_x, start_y, end_x)
-            time.sleep(1.0)
+            self._wait_for_state_change()
 
             # Check if puzzle was solved (slider might disappear)
             if self.page.locator("text='Slide to complete'").count() == 0:
                 print("    Puzzle slider solved!")
                 return True
-
-            time.sleep(0.5)
 
         return True
 

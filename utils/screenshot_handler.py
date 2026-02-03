@@ -2,10 +2,12 @@
 
 from pathlib import Path
 from datetime import datetime
+
 from PIL import Image
 from playwright.sync_api import Page
 
 from config import Settings
+from utils.types import BoundingBox
 
 
 class ScreenshotHandler:
@@ -100,13 +102,13 @@ class ScreenshotHandler:
             Path to the cropped screenshot
         """
         element = page.locator(selector)
-        bounding_box = element.bounding_box()
+        bounding_box: BoundingBox | None = element.bounding_box()
 
         if not bounding_box:
             raise ValueError(f"Element not found or not visible: {selector}")
 
         # Capture full page first
-        full_screenshot = self.capture(page, name=f"temp_{name}" if name else None)
+        full_screenshot = self.capture(page, name=f"temp_{name or 'element'}")
 
         # Calculate crop region with padding
         left = max(0, int(bounding_box["x"]) - padding)

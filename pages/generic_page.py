@@ -55,7 +55,9 @@ class GenericPage(BasePage):
     def capture_and_extract(
         self,
         screenshot_name: str | None = None,
-        extraction_prompt: str | None = None
+        extraction_prompt: str | None = None,
+        selector: str | None = None,
+        padding: int = 10
     ) -> dict:
         """
         Capture screenshot and extract data using OpenAI.
@@ -63,39 +65,18 @@ class GenericPage(BasePage):
         Args:
             screenshot_name: Optional custom name for screenshot
             extraction_prompt: Custom prompt for data extraction
+            selector: Optional CSS selector for element capture (full page if None)
+            padding: Extra padding around element (only used with selector)
 
         Returns:
             Dictionary with screenshot path and extracted data
         """
-        # Take screenshot
-        screenshot_path = self.take_screenshot(name=screenshot_name)
-        return self.getResult(screenshot_path, extraction_prompt)
-
-    def capture_element_and_extract(
-        self,
-        selector: str,
-        screenshot_name: str | None = None,
-        extraction_prompt: str | None = None,
-        padding: int = 10
-    ) -> dict:
-        """
-        Capture specific element screenshot and extract data.
-
-        Args:
-            selector: CSS selector for the element
-            screenshot_name: Optional custom name for screenshot
-            extraction_prompt: Custom prompt for data extraction
-            padding: Extra padding around element
-
-        Returns:
-            Dictionary with screenshot path and extracted data
-        """
-        # Take element screenshot
-        screenshot_path = self.take_element_screenshot(
-            selector,
-            name=screenshot_name,
-            padding=padding
-        )
+        if selector:
+            screenshot_path = self.take_element_screenshot(
+                selector, name=screenshot_name, padding=padding
+            )
+        else:
+            screenshot_path = self.take_screenshot(name=screenshot_name)
         return self.getResult(screenshot_path, extraction_prompt)
 
     def simulate_browsing(self, scroll_times: int = 3) -> None:

@@ -2,9 +2,22 @@
 
 import os
 from pathlib import Path
+from typing import Literal, get_args
+
 from dotenv import load_dotenv
 
 load_dotenv()
+
+ScreenshotFormat = Literal["png", "jpeg"]
+
+
+def _get_screenshot_format() -> ScreenshotFormat:
+    """Get and validate screenshot format from environment."""
+    fmt = os.getenv("SCREENSHOT_FORMAT", "png")
+    valid_formats = get_args(ScreenshotFormat)
+    if fmt not in valid_formats:
+        raise ValueError(f"SCREENSHOT_FORMAT must be one of {valid_formats}, got: {fmt}")
+    return fmt  # type: ignore[return-value]
 
 
 class Settings:
@@ -27,7 +40,7 @@ class Settings:
     VIEWPORT_HEIGHT = int(os.getenv("VIEWPORT_HEIGHT", "1080"))
 
     # Screenshot configuration
-    SCREENSHOT_FORMAT = os.getenv("SCREENSHOT_FORMAT", "png")
+    SCREENSHOT_FORMAT: ScreenshotFormat = _get_screenshot_format()
     SCREENSHOT_FULL_PAGE = os.getenv("SCREENSHOT_FULL_PAGE", "false").lower() == "true"
 
     # Human-like behavior delays (in milliseconds)
