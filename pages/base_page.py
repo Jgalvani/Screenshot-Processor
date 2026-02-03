@@ -65,7 +65,6 @@ class BasePage:
         try:
             self.page.goto(url, timeout=Settings.PAGE_LOAD_TIMEOUT, wait_until="domcontentloaded")
         except Exception:
-            # Page might timeout due to verification popup - try to handle it
             pass
 
         # Wait for page to be fully loaded
@@ -79,7 +78,6 @@ class BasePage:
 
         # Check for human verification during/after navigation
         self._handle_verification_popup()
-        self.human.wait_for_page_ready()
 
         # Handle cookie consent modals
         self._handle_cookie_consent()
@@ -87,12 +85,9 @@ class BasePage:
         # Handle other modals (sign-in, country selection, newsletters, etc.)
         self._handle_modals()
 
-    def _handle_verification_popup(self) -> None:
+    def _handle_verification_popup(self, timeout: int = 10000) -> None:
         """Handle any verification popups that appear during navigation."""
         try:
-            # Brief check for verification elements
-            time.sleep(0.3)
-
             # Check if this is a Cloudflare challenge page first (most common case)
             if self.antibot.is_cloudflare_challenge_page():
                 print("    Cloudflare challenge detected during navigation...")
@@ -100,7 +95,7 @@ class BasePage:
                     print("    Cloudflare challenge solved")
                     # Wait for redirect and new page to load
                     try:
-                        self.page.wait_for_load_state("domcontentloaded", timeout=15000)
+                        self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
                     except Exception:
                         pass
                     return
@@ -116,13 +111,11 @@ class BasePage:
             if self.page.locator("text='Slide to complete'").count() > 0:
                 print("    Puzzle captcha detected - attempting to solve...")
                 if self.antibot.solve_puzzle_slider():
-                    # Wait for page to load after solving
-                    time.sleep(2)
                     try:
-                        self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                        self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
                     except Exception:
                         pass
-                return
+                    return
 
             # Also check if there's a visible Cloudflare turnstile
             has_turnstile = self.page.locator("[class*='cf-turnstile'], [class*='turnstile'], [id*='turnstile']").count() > 0
@@ -140,11 +133,8 @@ class BasePage:
                 for _ in range(3):
                     if self.antibot.solve_human_verify():
                         print("    Verification checkbox clicked")
-                        time.sleep(random.uniform(3.0, 5.0))
-
-                        # Wait for page to potentially redirect after verification
                         try:
-                            self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                            self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
                         except Exception:
                             pass
                         break
@@ -158,15 +148,10 @@ class BasePage:
             # Check if cookie modal is present and accept it
             if self.cookie_handler.detect_cookie_modal():
                 self.cookie_handler.accept_cookies()
-
-                # Brief wait for page to stabilize
-                time.sleep(0.5)
-
                 try:
                     self.page.wait_for_load_state("domcontentloaded", timeout=3000)
                 except Exception:
                     pass
-
         except Exception:
             # Context may have been destroyed due to navigation - that's OK
             pass

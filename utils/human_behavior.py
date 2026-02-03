@@ -136,11 +136,7 @@ class HumanBehavior:
         try:
             self.page.wait_for_load_state("networkidle", timeout=timeout)
         except Exception:
-            # If networkidle times out, just wait for domcontentloaded
-            try:
-                self.page.wait_for_load_state("domcontentloaded", timeout=3000)
-            except Exception:
-                pass
+            pass  # networkidle timeout is OK - page content is already loaded
         self.random_delay(100, 300)
 
     def simulate_reading(self, duration_seconds: float | None = None) -> None:

@@ -361,14 +361,7 @@ class CookieHandler:
                 return False
 
             # Check for modal/banner containers
-            if self._has_visible_element(self.COOKIE_MODAL_SELECTORS):
-                return True
-
-            # Check for accept buttons visibility
-            if self._has_visible_element(self.COOKIE_ACCEPT_SELECTORS[:20]):
-                return True
-
-            return False
+            return self._has_visible_element(self.COOKIE_MODAL_SELECTORS)
 
         except Exception:
             return False
@@ -380,48 +373,42 @@ class CookieHandler:
         Returns:
             True if cookies were accepted successfully
         """
+        # Try each accept selector
+        for selector in self.COOKIE_ACCEPT_SELECTORS:
+            try:
+                locator = self.page.locator(selector)
+                if locator.count() > 0:
+                    button = locator.first
+                    if button.is_visible():
+                        # Scroll into view if needed
+                        try:
+                            button.scroll_into_view_if_needed()
+                        except Exception:
+                            pass
+                        time.sleep(random.uniform(0.1, 0.2))
+
+                        # Click the button
+                        try:
+                            button.click(timeout=3000)
+                        except Exception:
+                            # Try force click if normal click fails
+                            button.click(force=True, timeout=3000)
+
+                        print("    Cookie consent accepted")
+
+                        # Some sites reload or navigate after accepting cookies
+                        try:
+                            self.page.wait_for_load_state("domcontentloaded", timeout=5000)
+                        except Exception:
+                            pass
+
+                        return True
+
+            except Exception:
+                continue
+
+        # Fallback: Try JavaScript-based approach for stubborn modals
         try:
-            # Wait a bit for any cookie modal to appear
-            time.sleep(random.uniform(0.3, 0.6))
-
-            # Try each accept selector
-            for selector in self.COOKIE_ACCEPT_SELECTORS:
-                try:
-                    locator = self.page.locator(selector)
-                    if locator.count() > 0:
-                        button = locator.first
-                        if button.is_visible():
-                            # Scroll into view if needed
-                            try:
-                                button.scroll_into_view_if_needed()
-                            except Exception:
-                                pass
-                            time.sleep(random.uniform(0.1, 0.2))
-
-                            # Click the button
-                            try:
-                                button.click(timeout=3000)
-                            except Exception:
-                                # Try force click if normal click fails
-                                button.click(force=True, timeout=3000)
-
-                            print("    Cookie consent accepted")
-
-                            # Wait for page to stabilize after cookie acceptance
-                            # Some sites reload or navigate after accepting cookies
-                            time.sleep(1.0)
-                            try:
-                                self.page.wait_for_load_state("domcontentloaded", timeout=5000)
-                            except Exception:
-                                pass
-
-                            return True
-
-                except Exception:
-                    continue
-
-            # Fallback: Try JavaScript-based approach for stubborn modals
-            # Be more careful - only click buttons, not links that might navigate away
             clicked = self.page.evaluate("""
                 () => {
                     const acceptTexts = [
@@ -463,16 +450,14 @@ class CookieHandler:
                 time.sleep(random.uniform(0.5, 1.0))
                 print("    Cookie consent accepted (JS fallback)")
                 return True
+        except Exception:
+            pass
 
-            return False
-
-        except Exception as e:
-            print(f"    Cookie accept error: {e}")
-            return False
+        return False
 
     def dismiss_cookie_modal(self) -> bool:
         """
-        Try to dismiss/close a cookie modal without accepting (for testing).
+        Try to dismiss/close a cookie modal without accepting.
 
         Returns:
             True if modal was dismissed
@@ -801,45 +786,12 @@ class AntibotHandler:
                     }
                 """)
                 if handle:
-                    # We got coordinates directly, perform drag
-                    start_x = handle["x"] + handle["width"] / 2
-                    start_y = handle["y"] + handle["height"] / 2
-
-                    # Try dragging to approximately 60-70% of the track (common puzzle position)
-                    for offset_percent in [0.65, 0.55, 0.75, 0.45, 0.85]:
-                        end_x = start_x + 200 * offset_percent  # Approximate track width
-                        self._human_drag(start_x, start_y, end_x)
-                        time.sleep(1.0)
-
-                        # Check if puzzle was solved (slider might disappear)
-                        if self.page.locator("text='Slide to complete'").count() == 0:
-                            print("    Puzzle slider solved!")
-                            return True
-
-                        # Reset for next attempt
-                        time.sleep(0.5)
-
-                    return True
+                    return self._try_puzzle_drag_positions(handle)
 
             if handle:
                 handle_box = handle.bounding_box()
                 if handle_box:
-                    start_x = handle_box["x"] + handle_box["width"] / 2
-                    start_y = handle_box["y"] + handle_box["height"] / 2
-
-                    # Try multiple positions
-                    for offset_percent in [0.65, 0.55, 0.75, 0.45, 0.85]:
-                        end_x = start_x + 200 * offset_percent
-                        self._human_drag(start_x, start_y, end_x)
-                        time.sleep(1.0)
-
-                        if self.page.locator("text='Slide to complete'").count() == 0:
-                            print("    Puzzle slider solved!")
-                            return True
-
-                        time.sleep(0.5)
-
-                    return True
+                    return self._try_puzzle_drag_positions(handle_box)
 
         except Exception as e:
             print(f"    Puzzle slider error: {e}")
@@ -867,14 +819,12 @@ class AntibotHandler:
                 box = turnstile.bounding_box()
                 if box:
                     self._human_move_and_click(box)
-                    time.sleep(random.uniform(2.0, 5.0))
                     return True
 
             # Check for checkbox in iframe
             cf_iframe = self.page.locator(self.CAPTCHA_SELECTORS["cloudflare_checkbox"])
             if cf_iframe.count() > 0:
                 cf_iframe.click()
-                time.sleep(random.uniform(2.0, 5.0))
                 return True
 
         except Exception:
@@ -1104,7 +1054,6 @@ class AntibotHandler:
             checkbox = self.page.locator("label.cb-lb input[type='checkbox']")
             if checkbox.count() > 0:
                 checkbox.click()
-                time.sleep(random.uniform(3.0, 5.0))
                 return True
 
             # Strategy 8: Try finding by the label text
@@ -1112,7 +1061,6 @@ class AntibotHandler:
                 checkbox = self.page.locator(f"label:has-text('{text}') input[type='checkbox']")
                 if checkbox.count() > 0:
                     checkbox.click()
-                    time.sleep(random.uniform(3.0, 5.0))
                     return True
 
         except Exception as e:
@@ -1138,7 +1086,6 @@ class AntibotHandler:
                 box = checkbox.bounding_box()
                 if box:
                     self._human_move_and_click(box)
-                    time.sleep(random.uniform(1.0, 2.0))
                     return True
 
             # Try generic robot checkbox
@@ -1147,7 +1094,6 @@ class AntibotHandler:
                 box = robot_checkbox.bounding_box()
                 if box:
                     self._human_move_and_click(box)
-                    time.sleep(random.uniform(1.0, 2.0))
                     return True
 
         except Exception:
@@ -1245,7 +1191,36 @@ class AntibotHandler:
         self._smooth_mouse_move(click_x, click_y)
         time.sleep(random.uniform(0.2, 0.5))
         self.page.mouse.click(click_x, click_y)
-        time.sleep(random.uniform(3.0, 6.0))
+        return True
+
+    def _try_puzzle_drag_positions(self, handle_box: dict) -> bool:
+        """
+        Try dragging a puzzle slider to multiple positions.
+
+        Args:
+            handle_box: Bounding box of the slider handle (x, y, width, height)
+
+        Returns:
+            True if puzzle was solved or all positions were tried
+        """
+        track_width = 200  # Approximate width in pixels
+        offset_attempts = [0.65, 0.55, 0.75, 0.45, 0.85]  # Positions to try (center first)
+
+        start_x = handle_box["x"] + handle_box["width"] / 2
+        start_y = handle_box["y"] + handle_box["height"] / 2
+
+        for offset_percent in offset_attempts:
+            end_x = start_x + track_width * offset_percent
+            self._human_drag(start_x, start_y, end_x)
+            time.sleep(1.0)
+
+            # Check if puzzle was solved (slider might disappear)
+            if self.page.locator("text='Slide to complete'").count() == 0:
+                print("    Puzzle slider solved!")
+                return True
+
+            time.sleep(0.5)
+
         return True
 
     def _human_drag(self, start_x: float, start_y: float, end_x: float) -> None:
