@@ -66,7 +66,7 @@ class HumanBehavior:
         self.page.mouse.wheel(0, amount)
         self.random_delay(200, 500)
 
-    def human_move_to(self, x: int, y: int) -> None:
+    def mouse_move(self, x: float, y: float) -> None:
         """
         Move mouse to coordinates with human-like motion.
 
@@ -96,6 +96,56 @@ class HumanBehavior:
             self.page.mouse.move(intermediate_x, intermediate_y)
             time.sleep(random.uniform(0.005, 0.02))
 
+    def click_at(self, x: float, y: float) -> None:
+        """
+        Click at specific coordinates with human-like behavior.
+
+        Args:
+            x: X coordinate to click
+            y: Y coordinate to click
+        """
+        self.mouse_move(x, y)
+        time.sleep(random.uniform(0.1, 0.3))
+        self.page.mouse.click(x, y)
+
+    def hold_at(self, x: float, y: float, duration: float | None = None) -> None:
+        """
+        Press and hold at specific coordinates with human-like behavior.
+
+        Args:
+            x: X coordinate
+            y: Y coordinate
+            duration: Hold duration in seconds (randomized 2-4s if not specified)
+        """
+        self.mouse_move(x, y)
+        time.sleep(random.uniform(0.1, 0.3))
+        hold_time = duration or random.uniform(2.0, 4.0)
+        self.page.mouse.down()
+        time.sleep(hold_time)
+        self.page.mouse.up()
+
+    def click_box(
+        self,
+        box: BoundingBox,
+        hold: bool = False,
+        hold_duration: float | None = None
+    ) -> None:
+        """
+        Click or hold within a bounding box with human-like behavior.
+
+        Args:
+            box: Bounding box with x, y, width, height
+            hold: If True, press and hold instead of click
+            hold_duration: Hold duration in seconds (used only if hold=True)
+        """
+        x = box["x"] + box["width"] / 2 + random.randint(-3, 3)
+        y = box["y"] + box["height"] / 2 + random.randint(-3, 3)
+
+        if hold:
+            self.hold_at(x, y, hold_duration)
+        else:
+            self.click_at(x, y)
+
     def human_click(self, selector: str) -> None:
         """
         Click an element with human-like behavior.
@@ -107,15 +157,55 @@ class HumanBehavior:
         bounding_box: BoundingBox | None = element.bounding_box()
 
         if bounding_box:
-            # Add slight randomness within the element
-            x = bounding_box["x"] + random.randint(5, int(bounding_box["width"]) - 5)
-            y = bounding_box["y"] + random.randint(5, int(bounding_box["height"]) - 5)
+            self.click_box(bounding_box)
+        else:
+            element.click()
 
-            self.human_move_to(int(x), int(y))
-            self.random_delay(100, 300)
-
-        element.click()
         self.random_delay()
+
+    def drag(self, start_box: BoundingBox, end_x: float, end_y: float | None = None) -> None:
+        """
+        Perform a human-like drag operation.
+
+        Args:
+            start_box: Bounding box of the element to drag from (center is calculated)
+            end_x: Ending X coordinate
+            end_y: Ending Y coordinate (defaults to start_y for horizontal drag)
+        """
+        start_x = start_box["x"] + start_box["width"] / 2
+        start_y = start_box["y"] + start_box["height"] / 2
+
+        if end_y is None:
+            end_y = start_y
+
+        # Move to start position
+        self.mouse_move(start_x, start_y)
+        time.sleep(random.uniform(0.1, 0.3))
+
+        # Press mouse button
+        self.page.mouse.down()
+        time.sleep(random.uniform(0.05, 0.15))
+
+        # Drag with human-like motion (not perfectly straight)
+        distance = abs(end_x - start_x) + abs(end_y - start_y)
+        steps = max(20, int(distance / 10))
+
+        for i in range(steps):
+            progress = (i + 1) / steps
+            # Add slight wobble perpendicular to movement direction
+            wobble = random.uniform(-3, 3)
+
+            x = start_x + (end_x - start_x) * progress
+            y = start_y + (end_y - start_y) * progress + wobble
+
+            self.page.mouse.move(x, y)
+            time.sleep(random.uniform(0.01, 0.03))
+
+        # Small pause at end
+        time.sleep(random.uniform(0.1, 0.2))
+
+        # Release mouse button
+        self.page.mouse.up()
 
     def human_type(self, selector: str, text: str) -> None:
         """

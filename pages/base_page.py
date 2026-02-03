@@ -1,6 +1,5 @@
 """Base page class for Page Object Model implementation."""
 
-import random
 import time
 from pathlib import Path
 from playwright.sync_api import Page, Browser, Playwright
@@ -8,7 +7,7 @@ from playwright.sync_api import Page, Browser, Playwright
 from config import Settings
 from utils.human_behavior import HumanBehavior
 from utils.screenshot_handler import ScreenshotHandler
-from handlers import AntibotHandler, CookieHandler, ModalHandler
+from handlers import AntibotHandler, CloudflareHandler, CookieHandler, ModalHandler
 from utils.chrome_manager import ChromeManager
 
 
@@ -27,6 +26,7 @@ class BasePage:
         self.human = HumanBehavior(page)
         self.screenshot = ScreenshotHandler(output_dir=output_dir)
         self.antibot = AntibotHandler(page)
+        self.cloudflare = CloudflareHandler(page)
         self.cookie_handler = CookieHandler(page)
         self.modal_handler = ModalHandler(page)
 
@@ -89,23 +89,15 @@ class BasePage:
         """Handle any verification popups that appear during navigation."""
         try:
             # Check if this is a Cloudflare challenge page first (most common case)
-            if self.antibot.is_cloudflare_challenge_page():
+            if self.cloudflare.is_challenge_page():
                 print("    Cloudflare challenge detected during navigation...")
-                if self.antibot.solve_cloudflare_challenge():
+                if self.cloudflare.solve_challenge():
                     print("    Cloudflare challenge solved")
-                    # Wait for redirect and new page to load
                     try:
                         self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
                     except Exception:
                         pass
                     return
-
-            # Only handle verification if it's clearly a challenge page
-            # Check page title and visible content for clear indicators
-            page_title = self.page.title().lower()
-            is_challenge_page = any(term in page_title for term in [
-                "just a moment", "verify", "challenge", "security check", "access denied"
-            ])
 
             # Check for puzzle captcha (Shein uses this)
             if self.page.locator("text='Slide to complete'").count() > 0:
@@ -117,28 +109,13 @@ class BasePage:
                         pass
                     return
 
-            # Also check if there's a visible Cloudflare turnstile
-            has_turnstile = self.page.locator("[class*='cf-turnstile'], [class*='turnstile'], [id*='turnstile']").count() > 0
-
-            # Check for visible "Verify you are human" text
-            has_verify_text = self.page.locator("text='Verify you are human'").count() > 0
-
-            # Check for Cloudflare iframe
-            has_cf_iframe = self.page.locator("iframe[src*='challenges.cloudflare.com']").count() > 0
-
-            if is_challenge_page or has_turnstile or has_verify_text or has_cf_iframe:
-                print("    Human verification detected during navigation...")
-
-                # Try multiple times to find and click the checkbox
-                for _ in range(3):
-                    if self.antibot.solve_human_verify():
-                        print("    Verification checkbox clicked")
-                        try:
-                            self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
-                        except Exception:
-                            pass
-                        break
-                    time.sleep(random.uniform(1.0, 2.0))
+            # Check for other human verification challenges
+            if self.antibot.solve_human_verify():
+                print("    Verification checkbox clicked")
+                try:
+                    self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
+                except Exception:
+                    pass
         except Exception:
             pass
 
