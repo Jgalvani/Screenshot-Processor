@@ -47,7 +47,7 @@ class Settings:
     # Human-like behavior delays (in milliseconds)
     MIN_ACTION_DELAY = int(os.getenv("MIN_ACTION_DELAY", "100"))
     MAX_ACTION_DELAY = int(os.getenv("MAX_ACTION_DELAY", "500"))
-    PAGE_LOAD_TIMEOUT = int(os.getenv("PAGE_LOAD_TIMEOUT", "5000"))
+    PAGE_LOAD_TIMEOUT = int(os.getenv("PAGE_LOAD_TIMEOUT", "8000"))
 
     @classmethod
     def ensure_directories(cls) -> None:

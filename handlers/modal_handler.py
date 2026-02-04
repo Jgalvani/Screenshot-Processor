@@ -45,7 +45,7 @@ class ModalHandler:
         # X/close icons (common patterns)
         "button svg[class*='close']",
         "button [class*='icon-close']",
-        "button[class*='icon-only'] svg",
+        "button[class*='icon-only']:not([class*='search']) svg",
     ]
 
     # Selectors for modal containers
