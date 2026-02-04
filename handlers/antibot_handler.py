@@ -112,6 +112,7 @@ class AntibotHandler:
         try:
             selectors_to_try = [selector] if selector else [
                 self.CAPTCHA_SELECTORS["recaptcha_checkbox_inner"],
+                self.CAPTCHA_SELECTORS["human_verify_checkbox"],
                 self.CAPTCHA_SELECTORS["generic_robot_checkbox"],
                 "input[type='checkbox']",
             ]
@@ -129,7 +130,7 @@ class AntibotHandler:
 
                     if box:
                         self.human.click_box(box)
-                        self._wait_for_state_change()
+                        self.human.wait_for_ready()
                         return True
 
         except Exception:
@@ -157,7 +158,7 @@ class AntibotHandler:
 
                 if box:
                     self.human.click_box(box, hold=True, hold_duration=hold_duration)
-                    self._wait_for_state_change()
+                    self.human.wait_for_ready()
                     return True
 
         except Exception:
@@ -193,13 +194,42 @@ class AntibotHandler:
 
                 # Perform human-like drag
                 self.human.drag(handle_box, end_x)
-                self._wait_for_state_change()
+                self.human.wait_for_ready()
                 return True
 
         except Exception:
             pass
 
         return False
+    
+    
+    def _try_puzzle_drag_positions(self, handle_box: BoundingBox) -> bool:
+        """
+        Try dragging a puzzle slider to multiple positions.
+
+        Args:
+            handle_box: Bounding box of the slider handle (x, y, width, height)
+
+        Returns:
+            True if puzzle was solved or all positions were tried
+        """
+        track_width = 200  # Approximate width in pixels
+        offset_attempts = [0.65, 0.55, 0.75, 0.45, 0.85]  # Positions to try (center first)
+
+        # Calculate start_x for end position calculation
+        start_x = handle_box["x"] + handle_box["width"] / 2
+
+        for offset_percent in offset_attempts:
+            end_x = start_x + track_width * offset_percent
+            self.human.drag(handle_box, end_x)
+            self.human.wait_for_ready()
+
+            # Check if puzzle was solved (slider might disappear)
+            if self.page.locator("text='Slide to complete'").count() == 0:
+                print("    Puzzle slider solved!")
+                return True
+
+        return True
 
     def solve_puzzle_slider(self) -> bool:
         """
@@ -264,100 +294,34 @@ class AntibotHandler:
             print(f"    Puzzle slider error: {e}")
 
         return False
-
-    def solve_human_verify(self) -> bool:
-        """
-        Solve human verification checkbox/button challenges.
-
-        Returns:
-            True if verification element was found and clicked
-        """
-        try:
-            # Try to find and click a specific captcha checkbox
-            checkbox = self.page.locator(self.CAPTCHA_SELECTORS["human_verify_checkbox"]).first
-            if checkbox.is_visible():
-                box = checkbox.bounding_box()
-                if box:
-                    self.human.click_box(box)
-                    return True
-
-            # Try generic robot checkbox
-            robot_checkbox = self.page.locator(self.CAPTCHA_SELECTORS["generic_robot_checkbox"]).first
-            if robot_checkbox.is_visible():
-                box = robot_checkbox.bounding_box()
-                if box:
-                    self.human.click_box(box)
-                    return True
-
-        except Exception:
-            pass
-
-        return False
+    
 
     def auto_solve(self) -> bool:
         """
         Automatically detect and attempt to solve any antibot challenges.
 
         Returns:
-            True if any challenge was detected and attempted
+            True if a challenge was solved
         """
         detection = self.detect_antibot()
-        solved_any = False
 
-        # Prioritize Cloudflare challenge
-        if detection["has_cloudflare"]:
-            solved_any = self.cloudflare.solve_challenge() or solved_any
-            if solved_any:
-                return solved_any
+        if detection["has_cloudflare"] and self.cloudflare.solve_challenge():
+            return True
 
-        if detection["has_recaptcha"]:
-            solved_any = self.solve_checkbox(use_iframe=True) or solved_any
+        if detection["has_recaptcha"] and self.solve_checkbox(use_iframe=True):
+            return True
 
-        if detection["has_human_verify"]:
-            solved_any = self.solve_human_verify() or solved_any
+        if detection["has_human_verify"] and self.solve_checkbox():
+            return True
 
-        if detection["has_slider"]:
-            solved_any = self.solve_slider() or solved_any
+        if detection["has_slider"] and self.solve_slider():
+            return True
 
-        if detection["has_press_hold"]:
-            solved_any = self.solve_press_and_hold() or solved_any
+        if detection["has_press_hold"] and self.solve_press_and_hold():
+            return True
 
-        if detection["has_checkbox"]:
-            solved_any = self.solve_checkbox() or solved_any
+        if detection["has_checkbox"] and self.solve_checkbox():
+            return True
 
-        return solved_any
+        return False
 
-    def _wait_for_state_change(self, timeout: int = 5000) -> None:
-        """Wait for page state to change after an action (click, solve, etc.)."""
-        try:
-            self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
-        except Exception:
-            pass
-
-    def _try_puzzle_drag_positions(self, handle_box: BoundingBox) -> bool:
-        """
-        Try dragging a puzzle slider to multiple positions.
-
-        Args:
-            handle_box: Bounding box of the slider handle (x, y, width, height)
-
-        Returns:
-            True if puzzle was solved or all positions were tried
-        """
-        track_width = 200  # Approximate width in pixels
-        offset_attempts = [0.65, 0.55, 0.75, 0.45, 0.85]  # Positions to try (center first)
-
-        # Calculate start_x for end position calculation
-        start_x = handle_box["x"] + handle_box["width"] / 2
-
-        for offset_percent in offset_attempts:
-            end_x = start_x + track_width * offset_percent
-            self.human.drag(handle_box, end_x)
-            self._wait_for_state_change()
-
-            # Check if puzzle was solved (slider might disappear)
-            if self.page.locator("text='Slide to complete'").count() == 0:
-                print("    Puzzle slider solved!")
-                return True
-
-        return True

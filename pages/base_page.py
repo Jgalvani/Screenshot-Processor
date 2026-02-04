@@ -110,7 +110,7 @@ class BasePage:
                     return
 
             # Check for other human verification challenges
-            if self.antibot.solve_human_verify():
+            if self.antibot.solve_checkbox():
                 print("    Verification checkbox clicked")
                 try:
                     self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
@@ -122,22 +122,18 @@ class BasePage:
     def _handle_cookie_consent(self) -> None:
         """Handle cookie consent modals that appear after page load."""
         try:
-            # Check if cookie modal is present and accept it
             if self.cookie_handler.detect_cookie_modal():
-                self.cookie_handler.accept_cookies()
-                try:
-                    self.page.wait_for_load_state("domcontentloaded", timeout=3000)
-                except Exception:
-                    pass
+                if not self.cookie_handler.accept_cookies():
+                    self.cookie_handler.dismiss_cookie_modal()
+                self.human.wait_for_ready(timeout=3000)
         except Exception:
-            # Context may have been destroyed due to navigation - that's OK
             pass
 
     def _handle_modals(self) -> None:
         """Handle various modal popups (sign-in, country selection, newsletters, etc.)."""
         try:
             # Try to close any visible modals
-            self.modal_handler.close_all_modals(max_attempts=2)
+            self.modal_handler.close_all_modals()
         except Exception:
             pass
 
@@ -208,8 +204,17 @@ class BasePage:
         """
         self.page.locator(selector).wait_for(
             state="visible",
-            timeout=timeout 
+            timeout=timeout
         )
+
+    def wait_for_ready(self, timeout: int = 5000) -> None:
+        """
+        Wait for page to be ready after an action.
+
+        Args:
+            timeout: Maximum wait time in milliseconds
+        """
+        self.human.wait_for_ready(timeout)
 
     def scroll_to_element(self, selector: str) -> None:
         """
@@ -228,7 +233,7 @@ class BasePage:
         Args:
             selector: CSS selector for the element
         """
-        self.human.human_click(selector)
+        self.human.click(selector)
 
     def fill(self, selector: str, text: str) -> None:
         """

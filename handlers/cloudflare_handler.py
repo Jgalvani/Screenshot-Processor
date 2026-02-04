@@ -21,13 +21,6 @@ class CloudflareHandler:
         self.page = page
         self.human = HumanBehavior(page)
 
-    def _wait_for_state_change(self, timeout: int = 5000) -> None:
-        """Wait for page state to change after an action."""
-        try:
-            self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
-        except Exception:
-            pass
-
     def is_challenge_page(self) -> bool:
         """
         Check if the current page is a Cloudflare challenge page.
@@ -54,39 +47,6 @@ class CloudflareHandler:
         except Exception:
             return False
 
-    def handle(self) -> bool:
-        """
-        Handle Cloudflare challenge page.
-
-        Returns:
-            True if challenge was potentially solved
-        """
-        try:
-            self._wait_for_state_change()
-
-            # First, try the Turnstile-specific solver
-            if self.solve_turnstile():
-                return True
-
-            # Check for turnstile widget by ID
-            turnstile = self.page.locator(self.SELECTORS["turnstile"])
-            if turnstile.count() > 0:
-                box = turnstile.bounding_box()
-                if box:
-                    self.human.click_box(box)
-                    return True
-
-            # Check for checkbox in iframe
-            cf_iframe = self.page.locator(self.SELECTORS["checkbox_iframe"])
-            if cf_iframe.count() > 0:
-                cf_iframe.click()
-                return True
-
-        except Exception:
-            pass
-
-        return False
-
     def solve_challenge(self, max_attempts: int = 3, wait_after_solve: float = 5.0) -> bool:
         """
         Full solution for Cloudflare challenge pages.
@@ -108,15 +68,12 @@ class CloudflareHandler:
 
         for attempt in range(max_attempts):
             try:
-                # Wait for the Turnstile widget to fully load
-                self._wait_for_state_change()
-
                 # Attempt to solve the Turnstile
                 if self.solve_turnstile():
                     print(f"    Turnstile clicked (attempt {attempt + 1})")
 
                     # Wait for the verification to complete
-                    self._wait_for_state_change(timeout=int(wait_after_solve * 1000))
+                    self.human.wait_for_ready(timeout=int(wait_after_solve * 1000))
 
                     # Check if we're still on a challenge page
                     if not self.is_challenge_page():

@@ -49,17 +49,15 @@ def process_url(page, extractor: OpenAIExtractor | None, url: str, index: int, o
         print(f"    Page loaded: {generic_page.get_title()}")
 
         # Check if we're still on a Cloudflare challenge page after navigation
-        # (navigation handler might have already tried to solve it)
-        if generic_page.antibot.is_cloudflare_challenge_page():
+        if generic_page.cloudflare.is_challenge_page():
             print("    Still on Cloudflare challenge page, retrying...")
-            if generic_page.antibot.solve_cloudflare_challenge(max_attempts=3):
+            if generic_page.cloudflare.solve_challenge(max_attempts=3):
                 print("    Cloudflare challenge solved!")
-                generic_page.human.wait_for_page_ready()
+                generic_page.wait_for_ready()
             else:
                 print("    Warning: Could not solve Cloudflare challenge")
 
         # Only handle antibot challenges on actual challenge pages
-        # Check if this is a challenge/verification page (not a normal product page)
         page_title = generic_page.get_title().lower()
         is_challenge_page = any(term in page_title for term in [
             "just a moment", "verify", "access denied", "blocked",
@@ -70,7 +68,7 @@ def process_url(page, extractor: OpenAIExtractor | None, url: str, index: int, o
             print("    Antibot challenge detected, attempting to solve...")
             if generic_page.antibot.auto_solve():
                 print("    Challenge handled, waiting for page...")
-                generic_page.human.wait_for_page_ready()
+                generic_page.wait_for_ready()
 
         # Capture and extract
         result = generic_page.capture_and_extract(

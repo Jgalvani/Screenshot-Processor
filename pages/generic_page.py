@@ -2,7 +2,6 @@
 
 from .base_page import BasePage
 from utils.openai_extractor import OpenAIExtractor
-from utils.human_behavior import ScrollDirection
 from pathlib import Path
 
 
@@ -78,16 +77,3 @@ class GenericPage(BasePage):
         else:
             screenshot_path = self.take_screenshot(name=screenshot_name)
         return self.getResult(screenshot_path, extraction_prompt)
-
-    def simulate_browsing(self, scroll_times: int = 3) -> None:
-        """
-        Simulate human-like browsing behavior.
-
-        Args:
-            scroll_times: Number of times to scroll
-        """
-        self.human.simulate_reading()
-
-        for _ in range(scroll_times):
-            self.human.human_scroll(ScrollDirection.DOWN)
-            self.human.simulate_reading(duration_seconds=1.0)

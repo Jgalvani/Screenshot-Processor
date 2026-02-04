@@ -2,18 +2,11 @@
 
 import random
 import time
-from enum import Enum
 
 from playwright.sync_api import Page
 
 from config import Settings
 from utils.types import BoundingBox
-
-
-class ScrollDirection(Enum):
-    """Enum for scroll directions."""
-    UP = "up"
-    DOWN = "down"
 
 
 class HumanBehavior:
@@ -44,27 +37,6 @@ class HumanBehavior:
         max_delay = max_ms or Settings.MAX_ACTION_DELAY
         delay = random.randint(min_delay, max_delay) / 1000
         time.sleep(delay)
-
-    def human_scroll(
-        self,
-        direction: ScrollDirection = ScrollDirection.DOWN,
-        amount: int | None = None
-    ) -> None:
-        """
-        Scroll the page in a human-like manner.
-
-        Args:
-            direction: Scroll direction (ScrollDirection.UP or ScrollDirection.DOWN)
-            amount: Scroll amount in pixels (randomized if not specified)
-        """
-        if amount is None:
-            amount = random.randint(100, 400)
-
-        if direction == ScrollDirection.UP:
-            amount = -amount
-
-        self.page.mouse.wheel(0, amount)
-        self.random_delay(200, 500)
 
     def mouse_move(self, x: float, y: float) -> None:
         """
@@ -146,7 +118,7 @@ class HumanBehavior:
         else:
             self.click_at(x, y)
 
-    def human_click(self, selector: str) -> None:
+    def click(self, selector: str) -> None:
         """
         Click an element with human-like behavior.
 
@@ -186,23 +158,8 @@ class HumanBehavior:
         self.page.mouse.down()
         time.sleep(random.uniform(0.05, 0.15))
 
-        # Drag with human-like motion (not perfectly straight)
-        distance = abs(end_x - start_x) + abs(end_y - start_y)
-        steps = max(20, int(distance / 10))
-
-        for i in range(steps):
-            progress = (i + 1) / steps
-            # Add slight wobble perpendicular to movement direction
-            wobble = random.uniform(-3, 3)
-
-            x = start_x + (end_x - start_x) * progress
-            y = start_y + (end_y - start_y) * progress + wobble
-
-            self.page.mouse.move(x, y)
-            time.sleep(random.uniform(0.01, 0.03))
-
-        # Small pause at end
-        time.sleep(random.uniform(0.1, 0.2))
+        # Drag with human-like motion
+        self.mouse_move(end_x, end_y)
 
         # Release mouse button
         self.page.mouse.up()
@@ -222,31 +179,14 @@ class HumanBehavior:
         for char in text:
             element.press_sequentially(char, delay=random.randint(50, 150))
 
-    def wait_for_page_ready(self, timeout: int = 5000) -> None:
-        """Wait for page to be fully loaded and ready."""
-        try:
-            self.page.wait_for_load_state("networkidle", timeout=timeout)
-        except Exception:
-            pass  # networkidle timeout is OK - page content is already loaded
-        self.random_delay(100, 300)
-
-    def simulate_reading(self, duration_seconds: float | None = None) -> None:
+    def wait_for_ready(self, timeout: int = 5000) -> None:
         """
-        Simulate user reading the page content.
+        Wait for page to be ready after an action.
 
         Args:
-            duration_seconds: Reading duration (randomized if not specified)
+            timeout: Maximum wait time in milliseconds
         """
-        if duration_seconds is None:
-            duration_seconds = random.uniform(1.5, 4.0)
-
-        # Occasionally scroll while "reading"
-        elapsed = 0.0
-        while elapsed < duration_seconds:
-            wait_time = random.uniform(0.3, 0.8)
-            time.sleep(wait_time)
-            elapsed += wait_time
-
-            # Occasionally scroll a bit
-            if random.random() < 0.3:
-                self.human_scroll(ScrollDirection.DOWN, random.randint(50, 150))
+        try:
+            self.page.wait_for_load_state("domcontentloaded", timeout=timeout)
+        except Exception:
+            pass

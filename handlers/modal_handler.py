@@ -66,21 +66,23 @@ class ModalHandler:
         """Initialize ModalHandler with a Playwright page."""
         self.page = page
 
-    def detect_modal(self) -> bool:
+    def count_modals(self) -> int:
         """
-        Detect if a modal/popup is visible on the page.
+        Count visible modals/popups on the page.
 
         Returns:
-            True if a modal is detected
+            Number of visible modals detected
         """
+        count = 0
         for selector in self.MODAL_CONTAINER_SELECTORS:
             try:
-                if self.page.locator(selector).count() > 0:
-                    if self.page.locator(selector).first.is_visible():
-                        return True
+                locator = self.page.locator(selector)
+                for i in range(locator.count()):
+                    if locator.nth(i).is_visible():
+                        count += 1
             except Exception:
                 continue
-        return False
+        return count
 
     def close_modal(self) -> bool:
         """
@@ -141,24 +143,15 @@ class ModalHandler:
 
         return False
 
-    def close_all_modals(self, max_attempts: int = 3) -> int:
+    def close_all_modals(self) -> int:
         """
         Attempt to close all visible modals.
-
-        Args:
-            max_attempts: Maximum number of modals to try to close
 
         Returns:
             Number of modals closed
         """
         closed_count = 0
-        for _ in range(max_attempts):
-            if self.detect_modal():
-                if self.close_modal():
-                    closed_count += 1
-                    time.sleep(random.uniform(0.3, 0.5))
-                else:
-                    break
-            else:
-                break
+        for _ in range(self.count_modals()):
+            if self.close_modal():
+                closed_count += 1
         return closed_count

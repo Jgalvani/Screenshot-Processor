@@ -5,6 +5,8 @@ import time
 
 from playwright.sync_api import Page
 
+from utils import HumanBehavior
+
 
 class CookieHandler:
     """Handles cookie consent modals and banners."""
@@ -91,6 +93,7 @@ class CookieHandler:
     def __init__(self, page: Page):
         """Initialize CookieHandler with a Playwright page."""
         self.page = page
+        self.human = HumanBehavior(page)
 
     def _has_visible_element(self, selectors: list[str]) -> bool:
         """Check if any selector in the list has a visible element."""
@@ -159,10 +162,7 @@ class CookieHandler:
                         print("    Cookie consent accepted")
 
                         # Some sites reload or navigate after accepting cookies
-                        try:
-                            self.page.wait_for_load_state("domcontentloaded", timeout=5000)
-                        except Exception:
-                            pass
+                        self.human.wait_for_ready()
 
                         return True
 

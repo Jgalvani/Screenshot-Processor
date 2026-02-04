@@ -34,6 +34,7 @@ class Settings:
     SKIP_EXTRACTION = os.getenv("SKIP_EXTRACTION", "false").lower() == "true"
 
     # Browser configuration
+    CHROME_PATH = os.getenv("CHROME_PATH", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
     BROWSER_HEADLESS = os.getenv("BROWSER_HEADLESS", "false").lower() == "true"
     BROWSER_SLOW_MO = int(os.getenv("BROWSER_SLOW_MO", "100"))
     VIEWPORT_WIDTH = int(os.getenv("VIEWPORT_WIDTH", "1920"))

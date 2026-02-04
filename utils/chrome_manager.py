@@ -6,6 +6,8 @@ import subprocess
 import time
 import urllib.request
 
+from config import Settings
+
 
 class ChromeManager:
     """Manages Chrome browser process for CDP connection."""
@@ -19,8 +21,7 @@ class ChromeManager:
         subprocess.run(['pkill', '-f', 'Chrome.*remote-debugging'], capture_output=True)
         time.sleep(1)
 
-        # Chrome path for macOS
-        chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        chrome_path = Settings.CHROME_PATH
 
         # Create a temporary profile directory
         profile_dir = f"/tmp/chrome-debug-profile-{port}"
