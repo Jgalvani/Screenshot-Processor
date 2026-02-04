@@ -42,38 +42,20 @@ class WordReader:
 
         # Extract from paragraphs
         for paragraph in document.paragraphs:
-            found_urls = self.URL_PATTERN.findall(paragraph.text)
+            text = paragraph.text.strip()
+            if not text or text.startswith("#"):
+                continue
+            found_urls = self.URL_PATTERN.findall(text)
             urls.update(found_urls)
 
         # Extract from tables
         for table in document.tables:
             for row in table.rows:
                 for cell in row.cells:
-                    found_urls = self.URL_PATTERN.findall(cell.text)
+                    text = cell.text.strip()
+                    if not text or text.startswith("#"):
+                        continue
+                    found_urls = self.URL_PATTERN.findall(text)
                     urls.update(found_urls) 
 
         return list(urls)
-
-    def _extract_hyperlinks_from_xml(self, xml_content: str) -> list[str]:
-        """Extract hyperlink URLs from XML content."""
-        return self.URL_PATTERN.findall(xml_content)
-
-    def get_urls_with_context(self) -> list[dict]:
-        """
-        Extract URLs with surrounding text context.
-
-        Returns:
-            List of dicts with 'url' and 'context' keys
-        """
-        document = Document(self.file_path)
-        results = []
-
-        for paragraph in document.paragraphs:
-            found_urls = self.URL_PATTERN.findall(paragraph.text)
-            for url in found_urls:
-                results.append({
-                    "url": url,
-                    "context": paragraph.text.strip()
-                })
-
-        return results

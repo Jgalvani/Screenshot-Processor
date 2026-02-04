@@ -82,7 +82,7 @@ def process_url(page, extractor: OpenAIExtractor | None, url: str, index: int, o
             print(f"    Final price: {result.get('final_price', 'N/A')}")
 
         return {
-            "success": True,
+            "success": result.get("final_price") is not None,
             "url": url,
             "index": index,
             **result
@@ -138,21 +138,23 @@ def get_reader(file_path: Path):
 
 def select_files(files: list[Path]) -> list[Path]:
     """Prompt user to select which files to process."""
+
     print("\nAvailable files:")
-    for i, f in enumerate(files, 1):
+    print("  1. Process ALL files")
+
+    for i, f in enumerate(files, 2):
         print(f"  {i}. {f.name}")
-    print(f"  {len(files) + 1}. Process ALL files")
 
     while True:
         try:
             choice = input("\nSelect file(s) to process (number or 'all'): ").strip().lower()
 
-            if choice == 'all' or choice == str(len(files) + 1):
+            if choice == 'all' or choice == '1':
                 return files
 
-            idx = int(choice) - 1
-            if 0 <= idx < len(files):
-                return [files[idx]]
+            index = int(choice) - 2
+            if 0 <= index < len(files):
+                return [files[index]]
             else:
                 print("Invalid selection. Please try again.")
         except ValueError:
@@ -170,7 +172,7 @@ def main(file_path: str | None = None) -> None:
         file_path: Path to file containing URLs (.docx or .txt)
     """
     print("=" * 60)
-    print("Screenshot Saver - Browser Automation Workflow")
+    print("Screenshot Processor - Browser Extraction Automation")
     print("=" * 60)
 
     # Validate settings

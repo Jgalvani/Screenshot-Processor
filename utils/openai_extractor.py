@@ -50,6 +50,9 @@ class OpenAIExtractor:
         """
         base64_image = self._encode_image(image_path)
 
+        if additional_context:
+            prompt = f"{prompt}\n\nContext: {additional_context}"
+
         messages = [
             {
                 "role": "system",
@@ -69,7 +72,7 @@ class OpenAIExtractor:
                 "content": [
                     {
                         "type": "text",
-                        "text": f"{prompt}\n\nContext: {additional_context}" if additional_context else prompt
+                        "text": prompt
                     },
                     {
                         "type": "image_url",
