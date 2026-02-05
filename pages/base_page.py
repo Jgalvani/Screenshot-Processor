@@ -6,8 +6,7 @@ from playwright.sync_api import Page, Browser, Playwright
 
 from config import Settings
 from utils.human_behavior import HumanBehavior
-from utils.screenshot_handler import ScreenshotHandler
-from handlers import AntibotHandler, CloudflareHandler, CookieHandler, ModalHandler
+from handlers import AntibotHandler, CloudflareHandler, CookieHandler, ModalHandler, ScreenshotHandler
 from utils.chrome_manager import ChromeManager
 
 
